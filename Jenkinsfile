@@ -9,8 +9,8 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Obtener el código del repositorio
-                git branch: 'main', url: 'https://github.com/tu-usuario/tu-repositorio.git'
+                // Obtener el código del repositorio con credenciales
+                git branch: 'main', url: 'https://github.com/tu-usuario/tu-repositorio.git', credentialsId: 'github-credentials'
             }
         }
 
@@ -59,4 +59,3 @@ pipeline {
         }
     }
 }
-
