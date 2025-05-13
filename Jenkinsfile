@@ -9,8 +9,10 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Obtener el código del repositorio con credenciales
-                git branch: 'main', url: 'https://github.com/tu-usuario/tu-repositorio.git', credentialsId: 'github-credentials'
+                // Obtener el código del repositorio usando las credenciales
+                git branch: 'main', 
+                    url: 'https://github.com/amatamarco/Jenkins.git', 
+                    credentialsId: 'github-credentials'  // Usar las credenciales configuradas
             }
         }
 
@@ -59,3 +61,4 @@ pipeline {
         }
     }
 }
+
