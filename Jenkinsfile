@@ -72,9 +72,7 @@ pipeline {
             steps {
                 sh "unzip -o '${ARTIFACT_NAME}/${ARTIFACT_NAME}-linux.zip' -d artifact"
 
-                withCredentials([
-                    string(credentialsId: 'docker-registry-token', variable: 'DOCKER_TOKEN')
-                ]) {
+                withCredentials([string(credentialsId: 'docker-registry-token', variable: 'DOCKER_TOKEN')]) {
                     sh "echo ${DOCKER_TOKEN} | docker login ghcr.io -u ${GITHUB_CREDENTIALS_USR} --password-stdin"
                     sh 'docker buildx create --use || true'
 
