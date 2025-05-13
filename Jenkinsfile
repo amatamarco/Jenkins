@@ -19,7 +19,7 @@ pipeline {
                     sh '''
                     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
                     export NVM_DIR="$HOME/.nvm"
-                    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+                    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  // Corregido: eliminada la barra invertida
                     nvm install ${NODE_VERSION}
                     nvm use ${NODE_VERSION}
                     npm install -g yarn
@@ -100,4 +100,3 @@ pipeline {
         }
     }
 }
-
