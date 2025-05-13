@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        NODE_VERSION = '20.11.1'
+        NODE_VERSION = '23.x' // Cambié la versión a 23.x según tu solicitud
     }
 
     stages {
@@ -17,7 +17,8 @@ pipeline {
                 script {
                     // Instalar Node.js sin usar 'sudo'
                     sh '''
-                    curl -sL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
+                    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION} -o nodesource_setup.sh
+                    bash nodesource_setup.sh
                     apt-get install -y nodejs
                     npm install -g yarn
                     '''
@@ -97,3 +98,4 @@ pipeline {
         }
     }
 }
+
