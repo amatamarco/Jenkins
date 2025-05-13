@@ -2,101 +2,61 @@ pipeline {
     agent any
 
     environment {
-        NODE_VERSION = '23.x'
+        // Definir versión de Node.js si lo deseas
+        NODE_VERSION = '16.x'
     }
 
     stages {
-        stage('Checkout SCM') {
+        stage('Checkout') {
             steps {
-                checkout scm
+                // Obtener el código del repositorio
+                git branch: 'main', url: 'https://github.com/tu-usuario/tu-repositorio.git'
             }
         }
 
-        stage('Install Node and Yarn') {
+        stage('Set Up Node and Yarn') {
             steps {
                 script {
-                    // Instalar Node.js usando nvm (sin necesidad de sudo)
-                    sh '''
-                    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-                    export NVM_DIR="$HOME/.nvm"
-                    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  // Corregido: eliminada la barra invertida
-                    nvm install ${NODE_VERSION}
-                    nvm use ${NODE_VERSION}
-                    npm install -g yarn
-                    '''
+                    // Instalar Node.js usando el plugin de NodeJS
+                    def nodeHome = tool name: 'NodeJS', type: 'NodeJSInstallation'
+                    env.PATH = "${nodeHome}/bin:${env.PATH}"
+                    sh 'node -v'  // Verificar la versión de Node.js
+                    sh 'npm install -g yarn'  // Instalar Yarn globalmente
                 }
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                script {
-                    // Instalar dependencias sin usar 'sudo'
-                    sh 'npm install'
-                }
+                // Instalar las dependencias con Yarn (o npm)
+                sh 'yarn install'
             }
         }
 
-        stage('Change Version in Files') {
+        stage('Run Tests') {
             steps {
-                script {
-                    // Ejemplo de cambio de versión en archivos
-                    sh 'sed -i "s/old-version/new-version/" file.txt'
-                }
+                // Ejecutar los tests (puedes cambiar esto dependiendo de tu configuración)
+                sh 'yarn test'  // Cambiar por 'npm test' si usas npm
             }
         }
 
-        stage('Build Artifact') {
+        stage('Archive Artifacts') {
             steps {
-                script {
-                    // Comando de construcción
-                    sh 'npm run build'
-                }
-            }
-        }
-
-        stage('Install Production Dependencies') {
-            steps {
-                script {
-                    // Instalar dependencias de producción
-                    sh 'npm install --production'
-                }
-            }
-        }
-
-        stage('Deploy and Archive Artifacts') {
-            steps {
-                script {
-                    // Desplegar y archivar los artefactos
-                    sh 'npm run deploy'
-                }
-            }
-        }
-
-        stage('Docker Build and Push') {
-            steps {
-                script {
-                    // Asegúrate de que Docker esté configurado adecuadamente en Jenkins
-                    sh 'docker build -t my-app .'
-                    sh 'docker push my-app'
-                }
-            }
-        }
-
-        stage('Clean Up') {
-            steps {
-                script {
-                    // Limpiar recursos
-                    sh 'rm -rf build/'
-                }
+                // Archivar artefactos si es necesario (ej. logs o archivos generados)
+                archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
             }
         }
     }
 
     post {
-        always {
-            // Acciones que se ejecutan siempre después de cada pipeline
-            echo 'Cleaning up after pipeline run...'
+        success {
+            // Notificar éxito
+            echo '¡Los tests fueron exitosos!'
+        }
+        failure {
+            // Notificar fallo
+            echo 'Hubo un error en los tests'
         }
     }
 }
+
