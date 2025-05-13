@@ -53,6 +53,7 @@ pipeline {
                     sh 'yarn run build:production'
                     sh 'yarn install --production'
 
+                    // Cambié la sintaxis para usar el bucle each correctamente
                     ['linux', 'windows'].each { os ->
                         sh """
                             mkdir -p artifacts/${os}/node_modules
