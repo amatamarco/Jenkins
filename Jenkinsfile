@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        NODE_VERSION = '23.x' // Cambié la versión a 23.x según tu solicitud
+        NODE_VERSION = '23.x'
     }
 
     stages {
@@ -15,11 +15,13 @@ pipeline {
         stage('Install Node and Yarn') {
             steps {
                 script {
-                    // Instalar Node.js sin usar 'sudo'
+                    // Instalar Node.js usando nvm (sin necesidad de sudo)
                     sh '''
-                    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION} -o nodesource_setup.sh
-                    bash nodesource_setup.sh
-                    apt-get install -y nodejs
+                    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+                    export NVM_DIR="$HOME/.nvm"
+                    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+                    nvm install ${NODE_VERSION}
+                    nvm use ${NODE_VERSION}
                     npm install -g yarn
                     '''
                 }
