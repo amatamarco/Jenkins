@@ -1,129 +1,101 @@
 pipeline {
-    agent { label 'linux' }
-
-    options {
-        timeout(time: 30, unit: 'MINUTES')
-        disableConcurrentBuilds()
-        timestamps()
-    }
+    agent any
 
     environment {
-        ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
         NODE_VERSION = '20.11.1'
-        DOCKER_REGISTRY = 'ghcr.io/mytracontrol'
-        GITHUB_CREDENTIALS = credentials('github-credentials')
-        DOCKER_CREDENTIALS = credentials('docker-registry-credentials')
+        ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
+    }
+
+    options {
+        timestamps()
+        skipDefaultCheckout()
     }
 
     stages {
-        stage('Checkout & Init') {
+
+        stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
 
+        stage('Setup Node.js and Yarn') {
+            steps {
                 script {
-                    def branch = env.GIT_BRANCH?.replace('origin/', '') ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    env.BRANCH = branch
-                    env.IS_BUILDABLE = ['main', 'master', 'develop'].any { branch == it } || branch.startsWith('release/') || branch.startsWith('hotfix/')
-                    env.IMAGE_TAG = branch.startsWith('feature/') ? 'nightly' :
-                                    branch.startsWith('release/') || branch.startsWith('hotfix/') ? 'beta' :
-                                    branch == 'develop' ? 'alpha' :
-                                    ['main', 'master'].contains(branch) ? 'latest' : 'test'
+                    // Usa nvm o una imagen de Jenkins que ya tenga Node
+                    sh '''
+                    . $NVM_DIR/nvm.sh
+                    nvm install ${NODE_VERSION}
+                    nvm use ${NODE_VERSION}
+                    node -v
+                    yarn -v
+                    '''
                 }
             }
         }
 
-        stage('Install & Test') {
+        stage('Install Dependencies') {
             steps {
-                nodejs(nodeJSInstallationName: "NodeJS ${NODE_VERSION}") {
-                    sh 'npm install -g yarn'
-                    sh 'yarn install'
-                    sh 'yarn run test'
-                    junit 'test-results.xml'
-                    publishCoverage adapters: [coberturaAdapter('coverage/cobertura-coverage.xml')]
-                }
+                sh 'yarn install'
             }
         }
 
-        stage('Build Artifact') {
-            when { expression { env.IS_BUILDABLE == 'true' } }
+        stage('Update Version Tags') {
             steps {
-                nodejs(nodeJSInstallationName: "NodeJS ${NODE_VERSION}") {
-                    sh 'yarn install'
-                    sh "find ./artifacts -type f -name 'package.json' -o -name 'artifact.dna' -exec sed -i 's/\\(\\d\\+\\.\\d\\+\\.\\d\\+\\)/${env.BUILD_NUMBER}/g' {} +"
-                    sh 'yarn run build:production'
-                    sh 'yarn install --production'
-
-                    // Usando un bucle for en lugar de each
-                    for (os in ['linux', 'windows']) {
-                        sh """
-                            mkdir -p artifacts/${os}/node_modules
-                            cp -r node_modules/* artifacts/${os}/node_modules/
-                            mkdir -p ${ARTIFACT_NAME}
-                            zip -r ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${os}.zip artifacts/${os}
-                        """
-                    }
-
-                    archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
-                }
-            }
-        }
-
-        stage('Docker Build & Push') {
-            when { expression { env.IS_BUILDABLE == 'true' } }
-            steps {
-                sh "unzip -o '${ARTIFACT_NAME}/${ARTIFACT_NAME}-linux.zip' -d artifact"
-
-                withCredentials([string(credentialsId: 'docker-registry-token', variable: 'DOCKER_TOKEN')]) {
-                    sh "echo ${DOCKER_TOKEN} | docker login ghcr.io -u ${GITHUB_CREDENTIALS_USR} --password-stdin"
-                    sh 'docker buildx create --use || true'
-
+                script {
+                    def version = "${env.BUILD_NUMBER}"
                     sh """
-                        docker buildx build --push \
-                          --tag ${DOCKER_REGISTRY}/${ARTIFACT_NAME}:${BUILD_NUMBER} \
-                          --tag ${DOCKER_REGISTRY}/${ARTIFACT_NAME}:${IMAGE_TAG} \
-                          --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
-                          artifact
-                        docker system prune -a --force || true
+                    find artifacts -type f \\( -name 'package.json' -o -name 'artifact.dna' \\) -exec sed -i -E 's/\\"version\\": \\"[0-9]+\\.[0-9]+\\.[0-9]+\\"/\\"version\\": \\"${version}\\"/' {} +
                     """
                 }
             }
         }
 
-        stage('Release Notes & GitHub Release') {
-            when { expression { env.BRANCH in ['main', 'master'] } }
+        stage('Build Artifact') {
             steps {
-                script {
-                    def date = new Date().format("dd-MM-yyyy")
-                    def notes = """## 🚀 ${BUILD_NUMBER} - ${date}\n\nAutomated release for ${ARTIFACT_NAME}"""
+                sh 'yarn run build:production'
+            }
+        }
 
-                    writeFile file: 'RELEASE.md', text: notes
+        stage('Install Production Dependencies') {
+            steps {
+                sh 'yarn install --production'
+            }
+        }
 
-                    withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-                        def repo = sh(script: 'git config --get remote.origin.url', returnStdout: true).trim()
-                        def org = repo.tokenize('/')[-2]
-                        def name = repo.tokenize('/')[-1].replace('.git', '')
+        stage('Prepare Artifacts') {
+            matrix {
+                axes {
+                    axis {
+                        name 'ENVIRONMENT'
+                        values 'linux', 'windows'
+                    }
+                }
+                stages {
+                    stage('Copy node_modules') {
+                        steps {
+                            sh '''
+                            mkdir -p artifacts/${ENVIRONMENT}/node_modules
+                            cp -r node_modules/* artifacts/${ENVIRONMENT}/node_modules/
+                            '''
+                        }
+                    }
 
-                        sh """
-                            git tag -a v${BUILD_NUMBER} -m 'Release ${BUILD_NUMBER}'
-                            git push https://${GITHUB_CREDENTIALS_USR}:${GITHUB_TOKEN}@github.com/${org}/${name}.git v${BUILD_NUMBER}
-
-                            if command -v gh &>/dev/null; then
-                                echo ${GITHUB_TOKEN} | gh auth login --with-token
-                                gh release create v${BUILD_NUMBER} --title "Release ${BUILD_NUMBER}" --notes-file RELEASE.md ${ARTIFACT_NAME}/*.zip
-                            fi
-                        """
+                    stage('Archive Artifact') {
+                        steps {
+                            sh '''
+                            mkdir -p ${ARTIFACT_NAME}
+                            zip -r ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${ENVIRONMENT}.zip artifacts/${ENVIRONMENT}
+                            '''
+                        }
                     }
                 }
             }
         }
-    }
 
-    post {
-        always {
-            cleanWs()
-            script {
-                def status = currentBuild.result ?: 'SUCCESS'
-                echo "Build finished with status: ${status}"
+        stage('Publish Artifacts') {
+            steps {
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
             }
         }
     }
