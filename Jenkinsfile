@@ -2,49 +2,41 @@ pipeline {
     agent any
 
     environment {
-        // Definir versión de Node.js si lo deseas
-        NODE_VERSION = '16.x'
+        NODE_VERSION = '24.0.1'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Obtener el código del repositorio usando las credenciales
-                git branch: 'main', 
-                    url: 'https://github.com/amatamarco/Jenkins.git', 
-                    credentialsId: 'github-credentials'  // Usar las credenciales configuradas
+                git branch: 'main', credentialsId: 'github-credentials', url: 'https://github.com/amatamarco/Jenkins.git'
             }
         }
 
         stage('Set Up Node and Yarn') {
             steps {
                 script {
-                    // Instalar Node.js usando el plugin de NodeJS
                     def nodeHome = tool name: 'NodeJS', type: 'NodeJSInstallation'
                     env.PATH = "${nodeHome}/bin:${env.PATH}"
-                    sh 'node -v'  // Verificar la versión de Node.js
-                    sh 'npm install -g yarn'  // Instalar Yarn globalmente
+                    sh 'node -v'
+                    sh 'npm install -g yarn'
                 }
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                // Instalar las dependencias con Yarn (o npm)
                 sh 'yarn install'
             }
         }
 
         stage('Run Tests') {
             steps {
-                // Ejecutar los tests (puedes cambiar esto dependiendo de tu configuración)
-                sh 'yarn test'  // Cambiar por 'npm test' si usas npm
+                sh 'yarn test'
             }
         }
 
         stage('Archive Artifacts') {
             steps {
-                // Archivar artefactos si es necesario (ej. logs o archivos generados)
                 archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
             }
         }
@@ -52,13 +44,10 @@ pipeline {
 
     post {
         success {
-            // Notificar éxito
             echo '¡Los tests fueron exitosos!'
         }
         failure {
-            // Notificar fallo
             echo 'Hubo un error en los tests'
         }
     }
 }
-
