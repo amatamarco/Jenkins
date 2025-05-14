@@ -25,8 +25,17 @@ pipeline {
             echo "Usando feed privado"
             sh "npm config set registry ${FEED_URL}"
           }
-          echo "Instalando todas las dependencias incluyendo devDependencies"
-          sh "yarn install"
+          echo "Instalando todas las dependencias"
+          sh "yarn install --frozen-lockfile"  
+        }
+      }
+    }
+
+    stage('Verify TypeScript Installation') {
+      steps {
+        script {
+          echo "Verificando instalación de TypeScript"
+          sh "yarn bin/tsc --version"  
         }
       }
     }
@@ -103,4 +112,3 @@ pipeline {
     }
   }
 }
-
