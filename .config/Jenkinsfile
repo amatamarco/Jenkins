@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
+        ARTIFACT_NAME = 'Netin-artifact'  // Usa el nombre del artefacto que desees
     }
 
     options {
@@ -11,7 +11,7 @@ pipeline {
     }
 
     tools {
-        nodejs '20.11.1'
+        nodejs '20.11.1'  // Asegúrate de tener esta versión o la correcta configurada en Jenkins
     }
 
     stages {
@@ -19,19 +19,34 @@ pipeline {
             steps {
                 cleanWs()
                 checkout scm
-                sh 'git fetch --unshallow || true'
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install Dependencies with devDependencies') {
             steps {
                 sh 'yarn install'
+            }
+        }
+
+        stage('Change Version Tags') {
+            steps {
+                sh '''
+                VERSION=$(git rev-parse --short HEAD)
+                # Modificar el archivo package.json o artifact.dna con el nuevo número de versión.
+                jq '.version = "${VERSION}"' package.json > temp.json && mv temp.json package.json
+                '''
             }
         }
 
         stage('Build Artifact') {
             steps {
                 sh 'yarn run build:production'
+            }
+        }
+
+        stage('Install Production Dependencies') {
+            steps {
+                sh 'yarn install --production'
             }
         }
 
@@ -67,39 +82,7 @@ pipeline {
                             sh '''
                             mkdir -p ${ARTIFACT_NAME}
                             cd artifacts
-                            tar -czf ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.tar.gz ${PLATFORM}
-                            '''
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
-                    } else {
-                        bat "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
-                    }
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        if (isUnix()) {
-                            sh '''
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin myregistry
-                            docker push myregistry/${ARTIFACT_NAME}:latest
-                            '''
-                        } else {
-                            bat '''
-                            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin myregistry
-                            docker push myregistry/${ARTIFACT_NAME}:latest
+                            zip -r ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip ${PLATFORM}
                             '''
                         }
                     }
@@ -109,7 +92,7 @@ pipeline {
 
         stage('Publish Artifacts') {
             steps {
-                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
             }
         }
     }
