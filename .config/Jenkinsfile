@@ -14,7 +14,7 @@ pipeline {
   }
 
   tools {
-    nodejs '20.11.1'  // Usamos el tool de Node.js configurado en Jenkins
+    nodejs '20.11.1'  // Tool de Node.js configurado en Jenkins
   }
 
   stages {
@@ -29,24 +29,18 @@ pipeline {
             echo "Instalando dependencias para rama de desarrollo"
             sh "yarn install"
           }
-          // Instalar solo durante CI
-          sh "yarn add typescript @types/uuid --dev"
+          echo "Instalando dependencias de desarrollo necesarias"
+          sh "yarn add typescript @types/uuid rimraf --dev"
         }
       }
     }
 
     stage("Build production") {
       steps {
-        script {
-          echo "Limpiando artefactos previos..."
-          sh './node_modules/.bin/rimraf "./artifacts/**/{dist,*.md}" "./{test-results.xml,coverage,dist,reports}" "./*+(.tsbuildinfo)"'
-
-          echo "Compilando TypeScript en modo producción..."
-          sh './node_modules/.bin/tsc -p ./tsconfig.production.json'
-
-          echo "Copiando archivos adicionales..."
-          sh 'yarn run files'
-        }
+        echo "Limpiando artefactos previos..."
+        sh "./node_modules/.bin/rimraf ./artifacts/**/{dist,*.md} ./test-results.xml ./coverage ./dist ./reports ./*.tsbuildinfo"
+        echo "Compilando en modo producción..."
+        sh "yarn run build:production"
       }
     }
 
@@ -64,10 +58,9 @@ pipeline {
       }
     }
 
-    stage("Remove dev dependencies") {
+    stage("Install production dependencies") {
       steps {
-        echo "Eliminando dependencias de desarrollo para producción"
-        sh "yarn install --production --ignore-scripts --prefer-offline"
+        sh "yarn install --production"
       }
     }
 
@@ -88,28 +81,22 @@ pipeline {
 
     stage("Package Artifact") {
       steps {
-        script {
-          echo "Empaquetando artefacto en un archivo .zip"
-          sh "zip -r ${ARTIFACT_NAME}.zip ./dist"
-        }
+        echo "Empaquetando artefacto en un archivo .zip"
+        sh "zip -r ${ARTIFACT_NAME}.zip ./dist"
       }
     }
 
     stage("Publish Artifact") {
       steps {
-        script {
-          echo "Publicando artefacto a un repositorio"
-          sh "curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN} -T ${ARTIFACT_NAME}.zip 'https://artifactory.mirepositorio.com/artifactory/libs-release-local/${ARTIFACT_NAME}.zip'"
-        }
+        echo "Publicando artefacto a un repositorio"
+        sh "curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN} -T ${ARTIFACT_NAME}.zip 'https://artifactory.mirepositorio.com/artifactory/libs-release-local/${ARTIFACT_NAME}.zip'"
       }
     }
 
     stage("Release Notes") {
       steps {
-        script {
-          echo "Generando Release Notes"
-          sh "generate-release-notes --version ${VERSION_FILE}"
-        }
+        echo "Generando Release Notes"
+        sh "generate-release-notes --version ${VERSION_FILE}"
       }
     }
   }
@@ -123,3 +110,4 @@ pipeline {
     }
   }
 }
+
