@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        ARTIFACT_NAME = 'Netin-artifact'  // Usa el nombre del artefacto que desees
+        ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
+        NODE_VERSION = '20.11.1'
     }
 
     options {
@@ -11,7 +12,7 @@ pipeline {
     }
 
     tools {
-        nodejs '20.11.1'  // Asegúrate de tener esta versión o la correcta configurada en Jenkins
+        nodejs NODE_VERSION
     }
 
     stages {
@@ -19,22 +20,32 @@ pipeline {
             steps {
                 cleanWs()
                 checkout scm
+                sh 'git fetch --unshallow || true'
             }
         }
 
-        stage('Install Dependencies with devDependencies') {
+        stage('Install Dependencies') {
             steps {
                 sh 'yarn install'
             }
         }
 
-        stage('Change Version Tags') {
+        stage('Run Tests and Generate Coverage Report') {
             steps {
-                sh '''
-                VERSION=$(git rev-parse --short HEAD)
-                # Modificar el archivo package.json o artifact.dna con el nuevo número de versión.
-                jq '.version = "${VERSION}"' package.json > temp.json && mv temp.json package.json
-                '''
+                sh 'yarn run test'
+                publishHTML(target: [
+                    reportName: 'Test Report',
+                    reportDir: 'coverage',
+                    reportFiles: 'index.html',
+                    keepAll: true
+                ])
+            }
+        }
+
+        stage('Publish Code Coverage Results') {
+            steps {
+                junit '**/test-results.xml'
+                cobertura coberturaReportFile: '**/coverage/cobertura-coverage.xml'
             }
         }
 
@@ -44,45 +55,31 @@ pipeline {
             }
         }
 
-        stage('Install Production Dependencies') {
+        stage('Build Docker Image') {
             steps {
-                sh 'yarn install --production'
+                script {
+                    if (isUnix()) {
+                        sh "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
+                    } else {
+                        bat "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
+                    }
+                }
             }
         }
 
-        stage('Prepare Artifacts') {
-            matrix {
-                axes {
-                    axis {
-                        name 'PLATFORM'
-                        values 'linux', 'windows'
-                    }
-                }
-                stages {
-                    stage('Copy node_modules') {
-                        steps {
-                            script {
-                                if (isUnix()) {
-                                    sh '''
-                                    mkdir -p artifacts/${PLATFORM}/node_modules
-                                    cp -r node_modules/* artifacts/${PLATFORM}/node_modules/
-                                    '''
-                                } else {
-                                    bat '''
-                                    mkdir artifacts\\${PLATFORM}\\node_modules
-                                    xcopy /E /I node_modules\\* artifacts\\${PLATFORM}\\node_modules\\
-                                    '''
-                                }
-                            }
-                        }
-                    }
-
-                    stage('Archive Artifacts') {
-                        steps {
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        if (isUnix()) {
                             sh '''
-                            mkdir -p ${ARTIFACT_NAME}
-                            cd artifacts
-                            zip -r ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip ${PLATFORM}
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin myregistry
+                            docker push myregistry/${ARTIFACT_NAME}:latest
+                            '''
+                        } else {
+                            bat '''
+                            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin myregistry
+                            docker push myregistry/${ARTIFACT_NAME}:latest
                             '''
                         }
                     }
@@ -90,9 +87,13 @@ pipeline {
             }
         }
 
-        stage('Publish Artifacts') {
+        stage('Publish Release Notes') {
             steps {
-                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
+                script {
+                    def releaseNotes = """## Release ${env.VERSION}\n\n- New features and bug fixes included.\n- Docker images updated.\n"""
+                    writeFile file: 'release_notes.md', text: releaseNotes
+                    archiveArtifacts artifacts: 'release_notes.md', allowEmptyArchive: true
+                }
             }
         }
     }
@@ -103,4 +104,5 @@ pipeline {
         }
     }
 }
+
 
