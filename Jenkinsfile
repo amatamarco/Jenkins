@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     environment {
-        NODE_VERSION = '20.11.1'
         ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
     }
 
@@ -12,11 +11,10 @@ pipeline {
     }
 
     tools {
-        nodejs "${env.NODE_VERSION}"
+        nodejs '20.11.1'  // ← USAR literal, no una variable
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 cleanWs()
