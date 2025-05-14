@@ -23,6 +23,18 @@ pipeline {
             }
         }
 
+        stage('Determine Version') {
+            steps {
+                sh 'dotnet tool install --global GitVersion.Tool'
+                sh 'export PATH="$PATH:$HOME/.dotnet/tools"'
+                sh 'gitversion > gitversion.json'
+                script {
+                    def gitVersion = readJSON file: 'gitversion.json'
+                    env.VERSION = gitVersion.SemVer
+                }
+            }
+        }
+
         stage('Install Production Dependencies') {
             steps {
                 sh 'yarn install'
@@ -52,10 +64,19 @@ pipeline {
                 stages {
                     stage('Copy node_modules') {
                         steps {
-                            sh '''
-                            mkdir -p artifacts/${PLATFORM}/node_modules
-                            cp -r node_modules/* artifacts/${PLATFORM}/node_modules/
-                            '''
+                            script {
+                                if (isUnix()) {
+                                    sh '''
+                                    mkdir -p artifacts/${PLATFORM}/node_modules
+                                    cp -r node_modules/* artifacts/${PLATFORM}/node_modules/
+                                    '''
+                                } else {
+                                    bat '''
+                                    mkdir artifacts\\${PLATFORM}\\node_modules
+                                    xcopy /E /I node_modules\\* artifacts\\${PLATFORM}\\node_modules\\
+                                    '''
+                                }
+                            }
                         }
                     }
 
@@ -68,6 +89,48 @@ pipeline {
                             '''
                         }
                     }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        sh "docker build -t myregistry/${ARTIFACT_NAME}:${VERSION} ."
+                    } else {
+                        bat "docker build -t myregistry/${ARTIFACT_NAME}:${VERSION} ."
+                    }
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    script {
+                        if (isUnix()) {
+                            sh '''
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin myregistry
+                            docker push myregistry/${ARTIFACT_NAME}:${VERSION}
+                            '''
+                        } else {
+                            bat '''
+                            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin myregistry
+                            docker push myregistry/${ARTIFACT_NAME}:${VERSION}
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Publish Release Notes') {
+            steps {
+                script {
+                    def releaseNotes = """## Release ${env.VERSION}\n\n- New features and bug fixes included.\n- Docker images updated.\n"""
+                    writeFile file: 'release_notes.md', text: releaseNotes
+                    archiveArtifacts artifacts: 'release_notes.md', allowEmptyArchive: true
                 }
             }
         }
@@ -85,3 +148,4 @@ pipeline {
         }
     }
 }
+
