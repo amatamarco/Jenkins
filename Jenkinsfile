@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent {
+        label 'linux'
+    }
 
     environment {
         NODE_VERSION = '20.11.1'
@@ -8,46 +10,26 @@ pipeline {
 
     options {
         timestamps()
-        skipDefaultCheckout()
+        ansiColor('xterm')
+    }
+
+    tools {
+        nodejs "${env.NODE_VERSION}"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
+                cleanWs()
                 checkout scm
+                sh 'git fetch --unshallow || true'
             }
         }
 
-        stage('Setup Node.js and Yarn') {
-            steps {
-                script {
-                    // Usa nvm o una imagen de Jenkins que ya tenga Node
-                    sh '''
-                    . $NVM_DIR/nvm.sh
-                    nvm install ${NODE_VERSION}
-                    nvm use ${NODE_VERSION}
-                    node -v
-                    yarn -v
-                    '''
-                }
-            }
-        }
-
-        stage('Install Dependencies') {
+        stage('Install Dependencies (dev)') {
             steps {
                 sh 'yarn install'
-            }
-        }
-
-        stage('Update Version Tags') {
-            steps {
-                script {
-                    def version = "${env.BUILD_NUMBER}"
-                    sh """
-                    find artifacts -type f \\( -name 'package.json' -o -name 'artifact.dna' \\) -exec sed -i -E 's/\\"version\\": \\"[0-9]+\\.[0-9]+\\.[0-9]+\\"/\\"version\\": \\"${version}\\"/' {} +
-                    """
-                }
             }
         }
 
@@ -57,7 +39,7 @@ pipeline {
             }
         }
 
-        stage('Install Production Dependencies') {
+        stage('Install Dependencies (production)') {
             steps {
                 sh 'yarn install --production'
             }
@@ -67,7 +49,7 @@ pipeline {
             matrix {
                 axes {
                     axis {
-                        name 'ENVIRONMENT'
+                        name 'PLATFORM'
                         values 'linux', 'windows'
                     }
                 }
@@ -75,8 +57,8 @@ pipeline {
                     stage('Copy node_modules') {
                         steps {
                             sh '''
-                            mkdir -p artifacts/${ENVIRONMENT}/node_modules
-                            cp -r node_modules/* artifacts/${ENVIRONMENT}/node_modules/
+                            mkdir -p artifacts/${PLATFORM}/node_modules
+                            cp -r node_modules/* artifacts/${PLATFORM}/node_modules/
                             '''
                         }
                     }
@@ -85,7 +67,7 @@ pipeline {
                         steps {
                             sh '''
                             mkdir -p ${ARTIFACT_NAME}
-                            zip -r ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${ENVIRONMENT}.zip artifacts/${ENVIRONMENT}
+                            zip -r ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip artifacts/${PLATFORM}
                             '''
                         }
                     }
@@ -97,6 +79,12 @@ pipeline {
             steps {
                 archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
             }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished.'
         }
     }
 }
