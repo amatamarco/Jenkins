@@ -1,114 +1,86 @@
 pipeline {
-  agent any
+    agent any
 
-  options {
-    timestamps()
-  }
+    environment {
+        ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
+    }
 
-  environment {
-    ARTIFACT_NAME = "agbar-fh-kafka2kafka"
-    NODE_ENV = 'production'
-    FEED_URL = 'https://mi-feed-npm.com'
-    VERSION_FILE = 'version.json'
-    DOCKER_IMAGE = "myregistry/myimage:${GIT_COMMIT}"
-  }
+    options {
+        timestamps()
+        ansiColor('xterm')
+    }
 
-  tools {
-    nodejs '20.11.1'
-  }
+    tools {
+        nodejs '20.11.1'  // ← USAR literal, no una variable
+    }
 
-  stages {
-    stage('Install dependencies') {
-      steps {
-        script {
-          if (env.BRANCH_NAME == 'main') {
-            echo "Usando feed privado"
-            sh "npm config set registry ${FEED_URL}"
-          }
-          echo "Instalando todas las dependencias"
-          sh "yarn install --frozen-lockfile"  
+    stages {
+        stage('Checkout') {
+            steps {
+                cleanWs()
+                checkout scm
+                sh 'git fetch --unshallow || true'
+            }
         }
-      }
-    }
 
-    stage('Verify TypeScript Installation') {
-      steps {
-        script {
-          echo "Verificando instalación de TypeScript"
-          sh "yarn bin/tsc --version"  
+        stage('Install Dependencies (dev)') {
+            steps {
+                sh 'yarn install'
+            }
         }
-      }
-    }
 
-    stage('Build Artifact') {
-      steps {
-        echo "Compilando el artefacto de producción"
-        sh 'yarn run build:production'
-      }
-    }
-
-    stage('Run tests') {
-      steps {
-        script {
-          if (env.BRANCH_NAME == 'main') {
-            echo "Ejecutando tests con cobertura"
-            sh 'yarn test --coverage'
-          } else {
-            echo "Ejecutando tests sin cobertura"
-            sh 'yarn test'
-          }
+        stage('Build Artifact') {
+            steps {
+                sh 'yarn run build:production'
+            }
         }
-      }
+
+        stage('Install Dependencies (production)') {
+            steps {
+                sh 'yarn install --production'
+            }
+        }
+
+        stage('Prepare Artifacts') {
+            matrix {
+                axes {
+                    axis {
+                        name 'PLATFORM'
+                        values 'linux', 'windows'
+                    }
+                }
+                stages {
+                    stage('Copy node_modules') {
+                        steps {
+                            sh '''
+                            mkdir -p artifacts/${PLATFORM}/node_modules
+                            cp -r node_modules/* artifacts/${PLATFORM}/node_modules/
+                            '''
+                        }
+                    }
+
+                    stage('Archive Artifact') {
+                        steps {
+                            sh '''
+                            mkdir -p ${ARTIFACT_NAME}
+                            tar -czf ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.tar.gz -C artifacts ${PLATFORM}
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Publish Artifacts') {
+            steps {
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
+            }
+        }
     }
 
-    stage('Install production dependencies') {
-      steps {
-        echo "Reinstalando solo dependencias necesarias para producción"
-        sh 'yarn install --production --ignore-scripts'
-      }
+    post {
+        always {
+            echo 'Pipeline finished.'
+        }
     }
-
-    stage('Docker Build and Push') {
-      when {
-        branch 'main'
-      }
-      steps {
-        echo "Construyendo imagen Docker y subiéndola al registro"
-        sh """
-          docker build -t ${DOCKER_IMAGE} .
-          docker push ${DOCKER_IMAGE}
-        """
-      }
-    }
-
-    stage('Package Artifact') {
-      steps {
-        echo "Empaquetando ./dist como zip"
-        sh "zip -r ${ARTIFACT_NAME}.zip ./dist"
-      }
-    }
-
-    stage('Publish Artifact') {
-      steps {
-        echo "Publicando zip en Artifactory"
-        sh "curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN} -T ${ARTIFACT_NAME}.zip 'https://artifactory.mirepositorio.com/artifactory/libs-release-local/${ARTIFACT_NAME}.zip'"
-      }
-    }
-
-    stage('Release Notes') {
-      steps {
-        echo "Generando notas de versión"
-        sh "generate-release-notes --version ${VERSION_FILE}"
-      }
-    }
-  }
-
-  post {
-    success {
-      echo 'Pipeline ejecutado exitosamente.'
-    }
-    failure {
-      echo 'El pipeline falló.'
-    }
-  }
 }
