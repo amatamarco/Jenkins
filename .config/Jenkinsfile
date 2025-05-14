@@ -1,139 +1,148 @@
 pipeline {
     agent any
-
     environment {
-        ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
-        NODE_VERSION = '20.11.1'
+        WIKI_REPO_USER = credentials('wiki-repo-user')
+        WIKI_REPO_PAT = credentials('wiki-repo-pat')
     }
-
-    options {
-        timestamps()
-        ansiColor('xterm')
+    parameters {
+        string(name: 'artifactName', defaultValue: 'NameNotSet', description: 'Artifact name')
+        string(name: 'artifactWikiFileName', defaultValue: '${artifactName}', description: 'Name of the WIKI file')
+        string(name: 'wikiRepoUrl', defaultValue: 'NameNotSet', description: 'Wiki URL')
     }
-
-    tools {
-        nodejs NODE_VERSION
-    }
-
     stages {
         stage('Checkout') {
             steps {
-                cleanWs()
+                echo 'Checking out source code...'
                 checkout scm
-                sh 'git fetch --unshallow || true'
             }
         }
-
+        
         stage('Install Dependencies') {
             steps {
-                sh 'yarn install'
+                echo 'Installing dependencies...'
+                sh 'npm install'
             }
         }
 
-        stage('Run Tests and Generate Coverage Report') {
+        stage('Run Tests') {
             steps {
-                sh 'yarn run test'
-                publishHTML(target: [
-                    reportName: 'Test Report',
-                    reportDir: 'coverage',
-                    reportFiles: 'index.html',
-                    keepAll: true
-                ])
+                echo 'Running tests...'
+                sh 'npm test' 
             }
         }
 
-        stage('Publish Code Coverage Results') {
+        stage('Build Project') {
             steps {
-                junit '**/test-results.xml'
-                cobertura coberturaReportFile: '**/coverage/cobertura-coverage.xml'
+                echo 'Building the project...'
+                sh 'npm run build'
+            }
+        }
+        
+        stage('Generate Documentation') {
+            steps {
+                echo 'Generating documentation with TypeDoc...'
+                dir('docs') {
+                    sh 'npx typedoc --options ../typedoc.json'
+                }
             }
         }
 
-        stage('Build Artifact') {
+        stage('Generate Release Notes') {
             steps {
-                sh 'yarn run build:production'
+                echo 'Generating release notes...'
+                task: XplatGenerateReleaseNotes@3 {
+                    displayName: 'Generate Release Notes'
+                    inputs: [
+                        outputfile: 'RELEASE.md',
+                        templateLocation: 'InLine',
+                        inlinetemplate: '''--------------------------------------------
+      
+      ##   **{{buildDetails.buildNumber}}** - {{date buildDetails.finishTime "DD-MM-YYYY"}}
+      {{#if (hasWorkItemType this.workItems 'Product Backlog Item')}}
+      ###   Notable changes
+      {{#forEach this.workItems}}
+      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Product Backlog Item')}}
+        - #{{this.id}}  
+      {{#if (lookup this.fields 'System.Description')}}
+          - {{ sanitize (lookup this.fields 'System.ReleaseNotes')}}
+      {{/if}}
+      {{/if}}
+      {{/forEach}}
+      {{/if}}
+      {{#if (hasWorkItemType this.workItems 'Bug')}}
+      ###   Bugfixes
+      {{#forEach this.workItems}}
+      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Bug')}}
+        - #{{this.id}} 
+      {{#if (lookup this.fields 'System.ReleaseNotes')}}
+          - {{sanitize (lookup this.fields 'System.ReleaseNotes')}}
+      {{/if}}
+      {{/if}}
+      {{/forEach}}
+      {{/if}}
+      {{#if (hasWorkItemType this.workItems 'Task')}}
+      ###   Tasks
+      {{#forEach this.workItems}}
+      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Task')}}
+        - #{{this.id}} 
+      {{#if (lookup this.fields 'System.ReleaseNotes')}}
+          - {{sanitize (lookup this.fields 'System.ReleaseNotes')}}
+      {{/if}}
+      {{/if}}
+      {{/forEach}}
+      {{/if}}'''
+                }
             }
         }
 
-        stage('Package Artifact') {
+        stage('Push Release Notes to Wiki') {
             steps {
+                echo 'Pushing release notes to WIKI...'
+                task: WikiUpdaterTask@1 {
+                    repo: '${{parameters.wikiRepoUrl}}'
+                    filename: '${{parameters.artifactWikiFileName}}.md'
+                    replaceFile: false
+                    dataIsFile: true
+                    sourceFile: 'RELEASE.md'
+                    message: 'doc(wiki): update release notes for ${{parameters.artifactName}}'
+                    gitname: '$BUILD_REQUESTEDFOR'
+                    gitemail: '$BUILD_REQUESTEDFOREMAIL'
+                    user: $(WIKI_REPO_USER)
+                    password: $(WIKI_REPO_PAT)
+                    useAgentToken: false
+                    trimLeadingSpecialChar: true
+                    fixSpaces: true
+                    insertLinefeed: false
+                }
+            }
+        }
+
+        stage('Third Party License Check') {
+            steps {
+                echo 'Checking third-party licenses...'
                 script {
-                    // Simular cambio de versión en package.json y artifact.dna
-                    sh '''
-                        find artifacts \\( -name "package.json" -o -name "artifact.dna" \\) -exec \
-                        sed -i -E "s/\\"version\\": \\"[0-9]+\\.[0-9]+\\.[0-9]+\\"/\\"version\\": \\"${BUILD_NUMBER}\\"/" {} +
-                    '''
-
-                    // Instalar solo dependencias de producción
-                    sh 'yarn install --production'
-
-                    // Preparar node_modules y comprimir por entorno
-                    ['linux', 'windows'].each { envName ->
-                        sh """
-                            mkdir -p artifacts/${envName}/node_modules
-                            cp -r node_modules/* artifacts/${envName}/node_modules/
-
-                            mkdir -p ${ARTIFACT_NAME}
-                            cd artifacts/${envName}
-                            zip -r ../../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${envName}.zip ./*
-                            cd ../..
-                        """
-                    }
-
-                    // Publicar artefactos
-                    archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
+                    sh 'node thirdPartyCheck.js'
                 }
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Deploy') {
             steps {
-                script {
-                    if (isUnix()) {
-                        sh "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
-                    } else {
-                        bat "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
-                    }
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    script {
-                        if (isUnix()) {
-                            sh '''
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin myregistry
-                            docker push myregistry/${ARTIFACT_NAME}:latest
-                            '''
-                        } else {
-                            bat '''
-                            echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin myregistry
-                            docker push myregistry/${ARTIFACT_NAME}:latest
-                            '''
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Publish Release Notes') {
-            steps {
-                script {
-                    def releaseNotes = """## Release ${env.BUILD_NUMBER}\n\n- New features and bug fixes included.\n- Docker images updated.\n"""
-                    writeFile file: 'release_notes.md', text: releaseNotes
-                    archiveArtifacts artifacts: 'release_notes.md', allowEmptyArchive: true
-                }
+                echo 'Deploying the artifact...'
+                sh 'npm run deploy'
             }
         }
     }
 
     post {
-        always {
-            echo 'Pipeline finished.'
+        success {
+            echo 'Build and deployment successful!'
+        }
+        failure {
+            echo 'Build or deployment failed.'
         }
     }
 }
+
 
 
