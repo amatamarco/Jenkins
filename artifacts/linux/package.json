@@ -1,0 +1,22 @@
+{
+  "name": "agbar-fh-kafka2kafka",
+  "author": "Mytra Control S.L.",
+  "email": "info@netin.es",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "description": "Firehose - Connection between Kafka broker and Kafka broker",
+  "homepage": "https://www.netin.io",
+  "keywords": [
+    "Typescript",
+    "Nodejs",
+    "language",
+    "javascript",
+    "opcua",
+    "netin-ds",
+    "netin"
+  ],
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=20.11.1"
+  }
+}

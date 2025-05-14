@@ -1,0 +1,10 @@
+{
+  "worker": "agbar-fh-kafka2kafka",
+  "version": "0.1.0",
+  "type": "netin-ds-driver",
+  "workingDirectory": "",
+  "arguments": ["C:\\ProgramData\\Netin\\NDS-OuterCore\\node\\node.exe", "-r", "dotenv/config", "--max-old-space-size=2048", "dist/index.js"],
+  "mode": "service",
+  "resources" : [""],
+  "changelog": []
+}

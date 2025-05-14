@@ -1,0 +1,54 @@
+# Sources configuration for Firehose instance
+source: 
+  # Name of the source, used to identify the source in the logs and observability endpoints
+  name: kafka-source
+  # Kafka connection configuration
+  config:
+    # Kafka client configuration
+    client:
+      # Kafka client id 
+      clientId: source-client-level3
+      brokers:
+        - 10.10.20.33:9092
+  topics: 
+    - Level3.Energia.Medida.EDGE_Montcada.PLC10CLX
+    - Level3.Proceso.Calculo.EDGEBaixLlobregat.App_Sitec
+
+  # This string will be used as a prefix for the environment configuration variables,
+  # represented in [`SCREAMING_SNAKE_CASE`](https://en.wikipedia.org/wiki/Snake_case), which
+  # will be transformed to `camelCase` and combined with the rest of the configuration, except
+  # with the environment variables defined by the `Provider` developer.
+  # In this case, the configuration is established in this order of priority: 
+  #  - first, the arguments provided directly are taken into account, this include the fields of
+  # the `config` object
+  #  - then the configurations defined in the system's environment variables are considered
+  #  - and lastly, if none of the above is available, the default values of the provider are used
+  # you can check the available environment variables in the provider's documentation.
+  # Other options are possible, check the provider's documentation for more information.
+  useEnvironment: true
+# Sinks configuration for Firehose instance    
+sink:
+  # Kafka sink configuration
+  # Name of the sink, used to identify the source in the logs and observability endpoints
+  name: kafka-sink
+  namespace: Level_3_5
+  # Kafka connection configuration
+  config:
+    # Kafka client configuration
+    client:
+      # Kafka client id 
+      clientId: sink-client-level35
+      brokers:
+        - 10.10.20.33:9092
+  # This string will be used as a prefix for the environment configuration variables,
+  # represented in [`SCREAMING_SNAKE_CASE`](https://en.wikipedia.org/wiki/Snake_case), which
+  # will be transformed to `camelCase` and combined with the rest of the configuration, except
+  # with the environment variables defined by the `Provider` developer.
+  # In this case, the configuration is established in this order of priority: 
+  #  - first, the arguments provided directly are taken into account, this include the fields of
+  # the `config` object
+  #  - then the configurations defined in the system's environment variables are considered
+  #  - and lastly, if none of the above is available, the default values of the provider are used
+  # you can check the available environment variables in the provider's documentation.
+  # Other options are possible, check the provider's documentation for more information.
+  useEnvironment: true

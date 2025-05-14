@@ -1,0 +1,15 @@
+# Configuration for the Logger service.
+loggerOptions:
+  # Configuration for the console logger.
+  console:
+    # Log level for the console logger.
+    level: debug
+    # Flag to enable or disable the console logger.
+    enabled: true
+  # Configuration for the file logger.
+  file:
+    # Log level for the file logger.
+    level: info
+    # Flag to enable or disable the file logger.
+    enabled: true
+    filename: logs/my-test.log

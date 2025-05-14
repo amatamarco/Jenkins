@@ -1,0 +1,75 @@
+{
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "eslint.validate": [
+    "javascript",
+    "typescript"
+  ],
+  "eslint.enable": true,
+  "prettier.endOfLine": "lf",
+  "jestrunner.configPath": ".config/jest.config.js",
+  "jestrunner.runOptions": [
+    "--runInBand",
+    "--detectOpenHandles",
+    "--coverage=false",
+    "--no-cache",
+    "--forceExit"
+  ],
+  "jestrunner.debugOptions": {
+    "args": [
+      "--runInBand",
+      "--detectOpenHandles",
+      "--coverage=false",
+      "--no-cache",
+      "--forceExit"
+    ],
+  },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "cSpell.words": [
+    "cotp",
+    "COTP",
+    "FEPROM",
+    "mlfb",
+    "Mytra",
+    "Optimizables",
+    "preconnect",
+    "PROFIBUS",
+    "PROFINET",
+    "Proxyfied",
+    "reintento",
+    "ROSCTR",
+    "SIMATIC",
+    "timeseries",
+    "tpdu",
+    "TPDU",
+    "tpkt",
+    "TPKT",
+    "TSAP"
+  ],
+  "debug.javascript.terminalOptions": {
+    "env": {
+      "NODE_ENV": "development",
+      "DEBUG": "*,-*iso*,-*silly*"
+    }
+  },
+  // "editor.formatOnSave": true,
+}

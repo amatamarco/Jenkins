@@ -1,0 +1,14 @@
+
+{
+    "recommendations": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "sonarsource.sonarlint-vscode",
+        "firsttris.vscode-jest-runner",
+        "hbenl.vscode-test-explorer"
+    ],
+
+    "unwantedRecommendations": [
+        "ms-vscode.vscode-typescript-tslint-plugin"
+    ]
+}
