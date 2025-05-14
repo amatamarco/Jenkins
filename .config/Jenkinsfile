@@ -14,7 +14,7 @@ pipeline {
   }
 
   tools {
-    nodejs '20.11.1'  // Tool de Node.js configurado en Jenkins
+    nodejs '20.11.1'
   }
 
   stages {
@@ -24,13 +24,12 @@ pipeline {
           if (env.BRANCH_NAME == 'main') {
             echo "Instalando dependencias desde el feed privado"
             sh "npm config set registry ${FEED_URL}"
-            sh "yarn install"
-          } else {
-            echo "Instalando dependencias para rama de desarrollo"
-            sh "yarn install"
           }
-          echo "Instalando dependencias de desarrollo necesarias"
-          sh "yarn add typescript @types/uuid rimraf --dev"
+          echo "Instalando todas las dependencias..."
+          sh "yarn install"
+
+          echo "Instalando devDependencies necesarias..."
+          sh "yarn add --dev typescript @types/uuid rimraf javascript-obfuscator renamer"
         }
       }
     }
@@ -39,6 +38,7 @@ pipeline {
       steps {
         echo "Limpiando artefactos previos..."
         sh "./node_modules/.bin/rimraf ./artifacts/**/{dist,*.md} ./test-results.xml ./coverage ./dist ./reports ./*.tsbuildinfo"
+
         echo "Compilando en modo producción..."
         sh "yarn run build:production"
       }
@@ -48,10 +48,10 @@ pipeline {
       steps {
         script {
           if (env.BRANCH_NAME == 'main') {
-            echo "Ejecutando pruebas unitarias y análisis de cobertura en la rama principal"
+            echo "Ejecutando pruebas unitarias y cobertura"
             sh "yarn run test --coverage"
           } else {
-            echo "Ejecutando pruebas unitarias en la rama de desarrollo"
+            echo "Ejecutando pruebas unitarias"
             sh "yarn run test"
           }
         }
@@ -88,7 +88,7 @@ pipeline {
 
     stage("Publish Artifact") {
       steps {
-        echo "Publicando artefacto a un repositorio"
+        echo "Publicando artefacto a Artifactory"
         sh "curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN} -T ${ARTIFACT_NAME}.zip 'https://artifactory.mirepositorio.com/artifactory/libs-release-local/${ARTIFACT_NAME}.zip'"
       }
     }
