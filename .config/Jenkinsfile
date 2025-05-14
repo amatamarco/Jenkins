@@ -23,20 +23,6 @@ pipeline {
             }
         }
 
-        stage('Determine Version') {
-            steps {
-                script {
-                    // Usamos Docker para ejecutar GitVersion en lugar de .NET
-                    def gitVersion = sh(script: 'docker run --rm -v $(pwd):/app gittools/gitversion', returnStdout: true).trim()
-                    echo "GitVersion output: ${gitVersion}"
-
-                    // Parseamos la salida JSON para obtener la versión
-                    def gitVersionJson = readJSON text: gitVersion
-                    env.VERSION = gitVersionJson.SemVer
-                }
-            }
-        }
-
         stage('Install Production Dependencies') {
             steps {
                 sh 'yarn install'
@@ -99,9 +85,9 @@ pipeline {
             steps {
                 script {
                     if (isUnix()) {
-                        sh "docker build -t myregistry/${ARTIFACT_NAME}:${VERSION} ."
+                        sh "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
                     } else {
-                        bat "docker build -t myregistry/${ARTIFACT_NAME}:${VERSION} ."
+                        bat "docker build -t myregistry/${ARTIFACT_NAME}:latest ."
                     }
                 }
             }
@@ -114,12 +100,12 @@ pipeline {
                         if (isUnix()) {
                             sh '''
                             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin myregistry
-                            docker push myregistry/${ARTIFACT_NAME}:${VERSION}
+                            docker push myregistry/${ARTIFACT_NAME}:latest
                             '''
                         } else {
                             bat '''
                             echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin myregistry
-                            docker push myregistry/${ARTIFACT_NAME}:${VERSION}
+                            docker push myregistry/${ARTIFACT_NAME}:latest
                             '''
                         }
                     }
@@ -130,7 +116,7 @@ pipeline {
         stage('Publish Release Notes') {
             steps {
                 script {
-                    def releaseNotes = """## Release ${env.VERSION}\n\n- New features and bug fixes included.\n- Docker images updated.\n"""
+                    def releaseNotes = """## Release\n\n- New features and bug fixes included.\n- Docker images updated.\n"""
                     writeFile file: 'release_notes.md', text: releaseNotes
                     archiveArtifacts artifacts: 'release_notes.md', allowEmptyArchive: true
                 }
