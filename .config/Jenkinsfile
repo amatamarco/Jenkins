@@ -35,6 +35,12 @@ pipeline {
             }
         }
 
+        stage('Install zip') {
+            steps {
+                sh 'apt-get update && apt-get install -y zip' // Solo si es un entorno basado en Debian/Ubuntu
+            }
+        }
+
         stage('Prepare Artifacts') {
             matrix {
                 axes {
@@ -78,7 +84,3 @@ pipeline {
         }
     }
 }
-
-
-
-    
