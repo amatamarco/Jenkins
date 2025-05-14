@@ -1,6 +1,9 @@
 pipeline {
     agent {
-        docker { image 'node:20.11.1-buster' }
+        docker {
+            image 'node:20.11.1-buster' // Ya incluye `tsc` y puedes instalar `zip`
+            args '-u root'              // Ejecuta como root dentro del contenedor
+        }
     }
 
     environment {
@@ -13,15 +16,16 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Install Tools') {
             steps {
-                cleanWs()
-                checkout scm
-                sh 'git fetch --unshallow || true'
+                sh '''
+                apt-get update && apt-get install -y zip
+                npm install -g typescript
+                '''
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install Production Dependencies') {
             steps {
                 sh 'yarn install'
             }
@@ -30,6 +34,12 @@ pipeline {
         stage('Build Artifact') {
             steps {
                 sh 'yarn run build:production'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'yarn install --production'
             }
         }
 
@@ -76,4 +86,3 @@ pipeline {
         }
     }
 }
-
