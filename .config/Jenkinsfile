@@ -17,7 +17,7 @@ pipeline {
     stage("Install Yarn") {
       steps {
         // Instalar Yarn si no está disponible
-        sh 'npm install -g yarn'
+        sh 'npm install yarn --save-dev'
       }
     }
 
@@ -116,3 +116,4 @@ pipeline {
     }
   }
 }
+
