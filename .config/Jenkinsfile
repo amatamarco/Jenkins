@@ -23,7 +23,7 @@ pipeline {
             }
         }
 
-        stage('Install Production Dependencies') {
+        stage('Install Dependencies') {
             steps {
                 sh 'yarn install'
             }
@@ -32,12 +32,6 @@ pipeline {
         stage('Build Artifact') {
             steps {
                 sh 'yarn run build:production'
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh 'yarn install --production'
             }
         }
 
@@ -113,16 +107,6 @@ pipeline {
             }
         }
 
-        stage('Publish Release Notes') {
-            steps {
-                script {
-                    def releaseNotes = """## Release\n\n- New features and bug fixes included.\n- Docker images updated.\n"""
-                    writeFile file: 'release_notes.md', text: releaseNotes
-                    archiveArtifacts artifacts: 'release_notes.md', allowEmptyArchive: true
-                }
-            }
-        }
-
         stage('Publish Artifacts') {
             steps {
                 archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
@@ -136,5 +120,4 @@ pipeline {
         }
     }
 }
-
 
