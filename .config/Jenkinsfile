@@ -18,84 +18,77 @@ pipeline {
   }
 
   stages {
-    stage("Install dependencies") {
+    stage('Install dependencies') {
       steps {
         script {
           if (env.BRANCH_NAME == 'main') {
-            echo "Instalando dependencias desde el feed privado"
+            echo "Usando feed privado"
             sh "npm config set registry ${FEED_URL}"
           }
-          echo "Instalando todas las dependencias..."
+          echo "Instalando todas las dependencias incluyendo devDependencies"
           sh "yarn install"
-
-          echo "Instalando devDependencies necesarias..."
-          sh "yarn add --dev typescript @types/uuid rimraf javascript-obfuscator renamer"
         }
       }
     }
 
-    stage("Build production") {
+    stage('Build Artifact') {
       steps {
-        echo "Limpiando artefactos previos..."
-        sh "./node_modules/.bin/rimraf ./artifacts/**/{dist,*.md} ./test-results.xml ./coverage ./dist ./reports ./*.tsbuildinfo"
-
-        echo "Compilando en modo producción..."
-        sh "yarn run build:production"
+        echo "Compilando el artefacto de producción"
+        sh 'yarn run build:production'
       }
     }
 
-    stage("Run tests and coverage") {
+    stage('Run tests') {
       steps {
         script {
           if (env.BRANCH_NAME == 'main') {
-            echo "Ejecutando pruebas unitarias y cobertura"
-            sh "yarn run test --coverage"
+            echo "Ejecutando tests con cobertura"
+            sh 'yarn test --coverage'
           } else {
-            echo "Ejecutando pruebas unitarias"
-            sh "yarn run test"
+            echo "Ejecutando tests sin cobertura"
+            sh 'yarn test'
           }
         }
       }
     }
 
-    stage("Install production dependencies") {
+    stage('Install production dependencies') {
       steps {
-        sh "yarn install --production"
+        echo "Reinstalando solo dependencias necesarias para producción"
+        sh 'yarn install --production --ignore-scripts'
       }
     }
 
-    stage("Docker Build and Push") {
+    stage('Docker Build and Push') {
       when {
         branch 'main'
       }
       steps {
-        script {
-          echo "Construyendo y subiendo la imagen Docker"
-          sh """
-            docker build -t ${DOCKER_IMAGE} .
-            docker push ${DOCKER_IMAGE}
-          """
-        }
+        echo "Construyendo imagen Docker y subiéndola al registro"
+        sh """
+          docker build -t ${DOCKER_IMAGE} .
+          docker push ${DOCKER_IMAGE}
+        """
       }
     }
 
-    stage("Package Artifact") {
+    stage('Package Artifact') {
       steps {
-        echo "Empaquetando artefacto en un archivo .zip"
+        echo "Empaquetando ./dist como zip"
         sh "zip -r ${ARTIFACT_NAME}.zip ./dist"
       }
     }
 
-    stage("Publish Artifact") {
+    stage('Publish Artifact') {
       steps {
-        echo "Publicando artefacto a Artifactory"
+        echo "Publicando zip en Artifactory"
         sh "curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN} -T ${ARTIFACT_NAME}.zip 'https://artifactory.mirepositorio.com/artifactory/libs-release-local/${ARTIFACT_NAME}.zip'"
       }
     }
 
-    stage("Release Notes") {
+    stage('Release Notes') {
       steps {
-        echo "Generando Release Notes"
+        echo "Generando notas de versión"
         sh "generate-release-notes --version ${VERSION_FILE}"
       }
     }
@@ -103,10 +96,10 @@ pipeline {
 
   post {
     success {
-      echo "Pipeline ejecutado exitosamente!"
+      echo 'Pipeline ejecutado exitosamente.'
     }
     failure {
-      echo "Hubo un error en el pipeline"
+      echo 'El pipeline falló.'
     }
   }
 }
