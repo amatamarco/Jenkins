@@ -7,28 +7,17 @@ pipeline {
 
   environment {
     ARTIFACT_NAME = "agbar-fh-kafka2kafka"
-    NODE_ENV = 'production'  
-    FEED_URL = 'https://mi-feed-npm.com'  
-    VERSION_FILE = 'version.json'  
-    DOCKER_IMAGE = "myregistry/myimage:${GIT_COMMIT}"  
+    NODE_ENV = 'production'
+    FEED_URL = 'https://mi-feed-npm.com'
+    VERSION_FILE = 'version.json'
+    DOCKER_IMAGE = "myregistry/myimage:${GIT_COMMIT}"
+  }
+
+  tools {
+    nodejs '20.11.1'
   }
 
   stages {
-    stage('Install Node.js') {
-      steps {
-        sh """
-          curl -sL https://deb.nodesource.com/setup_20.x | bash -
-          apt-get install -y nodejs
-        """
-      }
-    }
-
-    stage("Install Yarn") {
-      steps {
-        sh 'npm install -g yarn'
-      }
-    }
-
     stage("Install dependencies") {
       steps {
         script {
