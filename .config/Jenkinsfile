@@ -23,9 +23,9 @@ pipeline {
             }
         }
 
-        stage('Install Production Dependencies') {
+        stage('Install Dependencies') {
             steps {
-                sh 'yarn install --production'
+                sh 'yarn install'
             }
         }
 
@@ -78,6 +78,7 @@ pipeline {
         }
     }
 }
+
 
 
     
