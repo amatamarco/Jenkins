@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent {
+        docker { image 'node:20.11.1-buster' }
+    }
 
     environment {
         ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
@@ -8,10 +10,6 @@ pipeline {
     options {
         timestamps()
         ansiColor('xterm')
-    }
-
-    tools {
-        nodejs '20.11.1'
     }
 
     stages {
@@ -32,12 +30,6 @@ pipeline {
         stage('Build Artifact') {
             steps {
                 sh 'yarn run build:production'
-            }
-        }
-
-        stage('Install zip') {
-            steps {
-                sh 'apt-get update && apt-get install -y zip' // Solo si es un entorno basado en Debian/Ubuntu
             }
         }
 
@@ -84,3 +76,4 @@ pipeline {
         }
     }
 }
+
