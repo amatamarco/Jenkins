@@ -7,17 +7,25 @@ pipeline {
 
   environment {
     ARTIFACT_NAME = "agbar-fh-kafka2kafka"
-    NODE_ENV = 'production'  
-    FEED_URL = 'https://mi-feed-npm.com' 
-    VERSION_FILE = 'version.json'  
-    DOCKER_IMAGE = "myregistry/myimage:${GIT_COMMIT}" 
+    NODE_ENV = 'production'  // Definir el entorno de producción
+    FEED_URL = 'https://mi-feed-npm.com'  // URL del feed privado
+    VERSION_FILE = 'version.json'  // Archivo para la versión del proyecto
+    DOCKER_IMAGE = "myregistry/myimage:${GIT_COMMIT}"  // Imagen Docker
   }
 
   stages {
+    stage("Install Yarn") {
+      steps {
+        // Instalar Yarn si no está disponible
+        sh 'npm install -g yarn'
+      }
+    }
+
     stage("Install dependencies") {
       steps {
         script {
           if (env.BRANCH_NAME == 'main') {
+            // Instalación de dependencias para la rama principal
             echo "Instalando dependencias desde el feed privado"
             sh "npm config set registry ${FEED_URL}"
             sh "yarn install"
@@ -83,6 +91,7 @@ pipeline {
       steps {
         script {
           echo "Publicando artefacto a un repositorio"
+          // Aquí puede ir un comando para subir el archivo .zip a un repositorio de artefactos o almacenamiento
           sh "curl -u ${ARTIFACTORY_USER}:${ARTIFACTORY_TOKEN} -T ${ARTIFACT_NAME}.zip 'https://artifactory.mirepositorio.com/artifactory/libs-release-local/${ARTIFACT_NAME}.zip'"
         }
       }
