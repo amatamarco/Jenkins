@@ -1,7 +1,5 @@
 pipeline {
-    agent {
-        label 'linux'
-    }
+    agent any
 
     environment {
         NODE_VERSION = '20.11.1'
