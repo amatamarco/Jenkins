@@ -23,17 +23,6 @@ pipeline {
             }
         }
 
-        stage('Install zip (Linux)') {
-            when {
-                expression { isUnix() }
-            }
-            steps {
-                sh '''
-                apt-get update && apt-get install -y zip
-                '''
-            }
-        }
-
         stage('Install Production Dependencies') {
             steps {
                 sh 'yarn install'
@@ -49,6 +38,18 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh 'yarn install --production'
+            }
+        }
+
+        stage('Install zip (Linux)') {
+            when {
+                expression { isUnix() }
+            }
+            steps {
+                sh '''
+                apt-get update && apt-get install -y sudo
+                sudo apt-get update && sudo apt-get install -y zip
+                '''
             }
         }
 
@@ -95,3 +96,5 @@ pipeline {
         }
     }
 }
+
+    
