@@ -11,7 +11,7 @@ pipeline {
     }
 
     tools {
-        nodejs '20.11.1'  // ← USAR literal, no una variable
+        nodejs '20.11.1'
     }
 
     stages {
@@ -23,7 +23,7 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies (dev)') {
+        stage('Install Production Dependencies') {
             steps {
                 sh 'yarn install'
             }
@@ -35,7 +35,7 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies (production)') {
+        stage('Install Dependencies') {
             steps {
                 sh 'yarn install --production'
             }
@@ -59,11 +59,11 @@ pipeline {
                         }
                     }
 
-                    stage('Archive Artifact') {
+                    stage('Archive Artifacts') {
                         steps {
                             sh '''
                             mkdir -p ${ARTIFACT_NAME}
-                            tar -czf ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.tar.gz -C artifacts ${PLATFORM}
+                            cd artifacts && zip -r ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip ${PLATFORM}
                             '''
                         }
                     }
@@ -73,7 +73,7 @@ pipeline {
 
         stage('Publish Artifacts') {
             steps {
-                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
             }
         }
     }
