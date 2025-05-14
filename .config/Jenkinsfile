@@ -41,18 +41,6 @@ pipeline {
             }
         }
 
-        stage('Install zip (Linux)') {
-            when {
-                expression { isUnix() }
-            }
-            steps {
-                sh '''
-                apt-get update && apt-get install -y sudo
-                sudo apt-get update && sudo apt-get install -y zip
-                '''
-            }
-        }
-
         stage('Prepare Artifacts') {
             matrix {
                 axes {
@@ -75,7 +63,7 @@ pipeline {
                         steps {
                             sh '''
                             mkdir -p ${ARTIFACT_NAME}
-                            cd artifacts && zip -r ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip ${PLATFORM}
+                            cd artifacts && tar -czvf ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.tar.gz ${PLATFORM}
                             '''
                         }
                     }
@@ -85,7 +73,7 @@ pipeline {
 
         stage('Publish Artifacts') {
             steps {
-                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
             }
         }
     }
