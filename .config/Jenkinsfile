@@ -63,7 +63,7 @@ pipeline {
                         steps {
                             sh '''
                             mkdir -p ${ARTIFACT_NAME}
-                            zip -r ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip artifacts/${PLATFORM}
+                            tar -czf ${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.tar.gz -C artifacts ${PLATFORM}
                             '''
                         }
                     }
@@ -73,7 +73,7 @@ pipeline {
 
         stage('Publish Artifacts') {
             steps {
-                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
             }
         }
     }
