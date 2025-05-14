@@ -1,148 +1,82 @@
 pipeline {
     agent any
     environment {
-        WIKI_REPO_USER = credentials('wiki-repo-user')
-        WIKI_REPO_PAT = credentials('wiki-repo-pat')
-    }
-    parameters {
-        string(name: 'artifactName', defaultValue: 'NameNotSet', description: 'Artifact name')
-        string(name: 'artifactWikiFileName', defaultValue: '${artifactName}', description: 'Name of the WIKI file')
-        string(name: 'wikiRepoUrl', defaultValue: 'NameNotSet', description: 'Wiki URL')
+        DOCKER_IMAGE = 'my-docker-image:latest'
+        DOCKER_REGISTRY = 'docker.io'
+        GIT_REPO = 'https://github.com/amatamarco/Jenkins.git'
     }
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out source code...'
-                checkout scm
+                git branch: 'main', url: "$GIT_REPO"
             }
         }
-        
+
         stage('Install Dependencies') {
             steps {
-                echo 'Installing dependencies...'
-                sh 'npm install'
+                script {
+                    // Instalar dependencias necesarias para el proyecto
+                    sh 'npm install'
+                }
             }
         }
 
-        stage('Run Tests') {
+        stage('Build') {
             steps {
-                echo 'Running tests...'
-                sh 'npm test' 
-            }
-        }
-
-        stage('Build Project') {
-            steps {
-                echo 'Building the project...'
-                sh 'npm run build'
-            }
-        }
-        
-        stage('Generate Documentation') {
-            steps {
-                echo 'Generating documentation with TypeDoc...'
-                dir('docs') {
-                    sh 'npx typedoc --options ../typedoc.json'
+                script {
+                    // Realizar la construcción del proyecto
+                    sh 'npm run build'
                 }
             }
         }
 
         stage('Generate Release Notes') {
             steps {
-                echo 'Generating release notes...'
-                task: XplatGenerateReleaseNotes@3 {
-                    displayName: 'Generate Release Notes'
-                    inputs: [
-                        outputfile: 'RELEASE.md',
-                        templateLocation: 'InLine',
-                        inlinetemplate: '''--------------------------------------------
-      
-      ##   **{{buildDetails.buildNumber}}** - {{date buildDetails.finishTime "DD-MM-YYYY"}}
-      {{#if (hasWorkItemType this.workItems 'Product Backlog Item')}}
-      ###   Notable changes
-      {{#forEach this.workItems}}
-      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Product Backlog Item')}}
-        - #{{this.id}}  
-      {{#if (lookup this.fields 'System.Description')}}
-          - {{ sanitize (lookup this.fields 'System.ReleaseNotes')}}
-      {{/if}}
-      {{/if}}
-      {{/forEach}}
-      {{/if}}
-      {{#if (hasWorkItemType this.workItems 'Bug')}}
-      ###   Bugfixes
-      {{#forEach this.workItems}}
-      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Bug')}}
-        - #{{this.id}} 
-      {{#if (lookup this.fields 'System.ReleaseNotes')}}
-          - {{sanitize (lookup this.fields 'System.ReleaseNotes')}}
-      {{/if}}
-      {{/if}}
-      {{/forEach}}
-      {{/if}}
-      {{#if (hasWorkItemType this.workItems 'Task')}}
-      ###   Tasks
-      {{#forEach this.workItems}}
-      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Task')}}
-        - #{{this.id}} 
-      {{#if (lookup this.fields 'System.ReleaseNotes')}}
-          - {{sanitize (lookup this.fields 'System.ReleaseNotes')}}
-      {{/if}}
-      {{/if}}
-      {{/forEach}}
-      {{/if}}'''
-                }
+                // Reemplazar por el método correcto para generar las notas de la versión
+                step([
+                    $class: 'XplatGenerateReleaseNotes',
+                    // Aquí puedes agregar los parámetros específicos que tu tarea o plugin necesite
+                ])
             }
         }
 
-        stage('Push Release Notes to Wiki') {
+        stage('Docker Build') {
             steps {
-                echo 'Pushing release notes to WIKI...'
-                task: WikiUpdaterTask@1 {
-                    repo: '${{parameters.wikiRepoUrl}}'
-                    filename: '${{parameters.artifactWikiFileName}}.md'
-                    replaceFile: false
-                    dataIsFile: true
-                    sourceFile: 'RELEASE.md'
-                    message: 'doc(wiki): update release notes for ${{parameters.artifactName}}'
-                    gitname: '$BUILD_REQUESTEDFOR'
-                    gitemail: '$BUILD_REQUESTEDFOREMAIL'
-                    user: $(WIKI_REPO_USER)
-                    password: $(WIKI_REPO_PAT)
-                    useAgentToken: false
-                    trimLeadingSpecialChar: true
-                    fixSpaces: true
-                    insertLinefeed: false
-                }
-            }
-        }
-
-        stage('Third Party License Check') {
-            steps {
-                echo 'Checking third-party licenses...'
                 script {
-                    sh 'node thirdPartyCheck.js'
+                    // Construir la imagen de Docker
+                    sh 'docker build -t $DOCKER_REGISTRY/$DOCKER_IMAGE .'
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    // Iniciar sesión en Docker Registry y hacer push de la imagen
+                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin $DOCKER_REGISTRY'
+                        sh 'docker push $DOCKER_REGISTRY/$DOCKER_IMAGE'
+                    }
                 }
             }
         }
 
         stage('Deploy') {
             steps {
-                echo 'Deploying the artifact...'
-                sh 'npm run deploy'
+                script {
+                    // Llamada a los pasos para el despliegue (aquí puedes agregar tus pasos específicos)
+                    echo 'Deploying application...'
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'Build and deployment successful!'
+            echo 'Build and deployment completed successfully.'
         }
         failure {
-            echo 'Build or deployment failed.'
+            echo 'There was an issue with the build or deployment.'
         }
     }
 }
-
-
-
