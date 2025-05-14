@@ -7,10 +7,14 @@ pipeline {
 
   environment {
     ARTIFACT_NAME = "agbar-fh-kafka2kafka"
-    NODE_ENV = 'production'  
-    FEED_URL = 'https://mi-feed-npm.com' 
-    VERSION_FILE = 'version.json'  
-    DOCKER_IMAGE = "myregistry/myimage:${GIT_COMMIT}" 
+    NODE_ENV = 'production'
+    FEED_URL = 'https://mi-feed-npm.com'
+    VERSION_FILE = 'version.json'
+    DOCKER_IMAGE = "myregistry/myimage:${GIT_COMMIT}"
+  }
+
+  tools {
+    nodejs '20.11.1'  // Usamos el tool de Node.js configurado en Jenkins
   }
 
   stages {
@@ -25,20 +29,24 @@ pipeline {
             echo "Instalando dependencias para rama de desarrollo"
             sh "yarn install"
           }
+          // Instalar solo durante CI
+          sh "yarn add typescript @types/uuid --dev"
         }
       }
     }
 
     stage("Build production") {
       steps {
-        echo "Limpiando artefactos previos..."
-        sh './node_modules/.bin/rimraf "./artifacts/**/{dist,*.md}" "./{test-results.xml,coverage,dist,reports}" "./*+(.tsbuildinfo)"'
-        
-        echo "Compilando TypeScript en modo producción..."
-        sh './node_modules/.bin/tsc -p ./tsconfig.production.json'
+        script {
+          echo "Limpiando artefactos previos..."
+          sh './node_modules/.bin/rimraf "./artifacts/**/{dist,*.md}" "./{test-results.xml,coverage,dist,reports}" "./*+(.tsbuildinfo)"'
 
-        echo "Copiando archivos adicionales..."
-        sh 'yarn run files'
+          echo "Compilando TypeScript en modo producción..."
+          sh './node_modules/.bin/tsc -p ./tsconfig.production.json'
+
+          echo "Copiando archivos adicionales..."
+          sh 'yarn run files'
+        }
       }
     }
 
@@ -56,9 +64,10 @@ pipeline {
       }
     }
 
-    stage("Install production dependencies") {
+    stage("Remove dev dependencies") {
       steps {
-        sh "yarn install --production"
+        echo "Eliminando dependencias de desarrollo para producción"
+        sh "yarn install --production --ignore-scripts --prefer-offline"
       }
     }
 
