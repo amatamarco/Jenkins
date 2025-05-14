@@ -25,12 +25,14 @@ pipeline {
 
         stage('Determine Version') {
             steps {
-                sh 'dotnet tool install --global GitVersion.Tool'
-                sh 'export PATH="$PATH:$HOME/.dotnet/tools"'
-                sh 'gitversion > gitversion.json'
                 script {
-                    def gitVersion = readJSON file: 'gitversion.json'
-                    env.VERSION = gitVersion.SemVer
+                    // Usamos Docker para ejecutar GitVersion en lugar de .NET
+                    def gitVersion = sh(script: 'docker run --rm -v $(pwd):/app gittools/gitversion', returnStdout: true).trim()
+                    echo "GitVersion output: ${gitVersion}"
+
+                    // Parseamos la salida JSON para obtener la versión
+                    def gitVersionJson = readJSON text: gitVersion
+                    env.VERSION = gitVersionJson.SemVer
                 }
             }
         }
@@ -148,4 +150,5 @@ pipeline {
         }
     }
 }
+
 
