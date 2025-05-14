@@ -25,19 +25,13 @@ pipeline {
 
         stage('Install Production Dependencies') {
             steps {
-                sh 'yarn install'
+                sh 'yarn install --production'
             }
         }
 
         stage('Build Artifact') {
             steps {
                 sh 'yarn run build:production'
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh 'yarn install --production'
             }
         }
 
@@ -63,7 +57,7 @@ pipeline {
                         steps {
                             sh '''
                             mkdir -p ${ARTIFACT_NAME}
-                            cd artifacts && tar -czvf ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.tar.gz ${PLATFORM}
+                            cd artifacts && zip -r ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip ${PLATFORM}
                             '''
                         }
                     }
@@ -73,7 +67,7 @@ pipeline {
 
         stage('Publish Artifacts') {
             steps {
-                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
             }
         }
     }
@@ -84,5 +78,6 @@ pipeline {
         }
     }
 }
+
 
     
