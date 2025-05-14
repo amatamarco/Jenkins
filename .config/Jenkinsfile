@@ -14,7 +14,7 @@ pipeline {
   }
 
   tools {
-    nodejs '20.11.1'
+    nodejs '20.11.1' 
   }
 
   stages {
@@ -29,6 +29,7 @@ pipeline {
             echo "Instalando dependencias para rama de desarrollo"
             sh "yarn install"
           }
+          sh "yarn add typescript --dev"  
         }
       }
     }
