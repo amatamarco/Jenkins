@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:20.11.1-buster' // Ya incluye `tsc` y puedes instalar `zip`
-            args '-u root'              // Ejecuta como root dentro del contenedor
-        }
-    }
+    agent any
 
     environment {
         ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
@@ -15,13 +10,16 @@ pipeline {
         ansiColor('xterm')
     }
 
+    tools {
+        nodejs '20.11.1'
+    }
+
     stages {
-        stage('Install Tools') {
+        stage('Checkout') {
             steps {
-                sh '''
-                apt-get update && apt-get install -y zip
-                npm install -g typescript
-                '''
+                cleanWs()
+                checkout scm
+                sh 'git fetch --unshallow || true'
             }
         }
 
@@ -65,7 +63,8 @@ pipeline {
                         steps {
                             sh '''
                             mkdir -p ${ARTIFACT_NAME}
-                            cd artifacts && zip -r ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.zip ${PLATFORM}
+                            cd artifacts
+                            tar -czf ../${ARTIFACT_NAME}/${ARTIFACT_NAME}-${PLATFORM}.tar.gz ${PLATFORM}
                             '''
                         }
                     }
@@ -75,7 +74,7 @@ pipeline {
 
         stage('Publish Artifacts') {
             steps {
-                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.zip", fingerprint: true
+                archiveArtifacts artifacts: "${ARTIFACT_NAME}/*.tar.gz", fingerprint: true
             }
         }
     }
