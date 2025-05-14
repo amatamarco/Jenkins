@@ -1,0 +1,7 @@
+## Driver debugging enabled
+DEBUG=*,-*iso*,-*kafka:silly*
+# CONFIG_LOGGER_CONSOLE_ENABLED=true
+# CONFIG_LOGGER_CONSOLE_LEVEL=debug
+
+CONFIG_FIREHOSE_FILE=D:\Agbar\AGBAR-Firehose-Kafka2Kafka-Typescript\config\firehose.config.yaml
+CONFIG_CUSTOM_PRESET_FIREHOSE_FILE=D:\Agbar\AGBAR-Firehose-Kafka2Kafka-Typescript\config\custom\presets\firehose.preset.yaml

@@ -1,0 +1,100 @@
+#Parameters for Release notes generation and publish
+parameters:
+  - name: artifactName
+    displayName: Artifact name
+    type: string
+    default: NameNotSet
+  - name: artifactWikiFileName
+    displayName: Name of the WIKI file
+    type: string
+    default: $(artifactName)
+  - name: wikiRepoUrl
+    displayName: Wiki URL
+    type: string
+    default: NameNotSet
+steps:
+- task: XplatGenerateReleaseNotes@3
+  displayName: Generate Release Notes
+  inputs:
+    outputfile: 'RELEASE.md'
+    templateLocation: 'InLine'
+    inlinetemplate: |
+      --------------------------------------------
+      
+      ## 🚀 **{{buildDetails.buildNumber}}** - {{date buildDetails.finishTime "DD-MM-YYYY"}}
+      {{#if (hasWorkItemType this.workItems 'Product Backlog Item')}}
+      ### 🔧 Notable changes
+      
+      {{#forEach this.workItems}}
+      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Product Backlog Item')}}
+        - #{{this.id}}  
+      {{#if (lookup this.fields 'System.Description')}}
+          - {{ sanitize (lookup this.fields 'System.ReleaseNotes')}}
+      {{/if}}
+      {{/if}}
+      {{/forEach}}
+      
+      
+      {{/if}}
+      {{#if (hasWorkItemType this.workItems 'Bug')}}
+      ### 🐞 Bugfixes
+      
+      {{#forEach this.workItems}}
+      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Bug')}}
+        - #{{this.id}} 
+      {{#if (lookup this.fields 'System.ReleaseNotes')}}
+          - {{sanitize (lookup this.fields 'System.ReleaseNotes')}}
+      {{/if}}
+      {{/if}}
+      {{/forEach}}
+
+
+      {{/if}}
+      {{#if (hasWorkItemType this.workItems 'Task')}}
+      ### 📖 Tasks
+
+      {{#forEach this.workItems}}
+      {{#if (eq (lookup this.fields 'System.WorkItemType' ) 'Task')}}
+        - #{{this.id}} 
+      {{#if (lookup this.fields 'System.ReleaseNotes')}}
+          - {{sanitize (lookup this.fields 'System.ReleaseNotes')}}
+      {{/if}}
+      {{/if}}
+      {{/forEach}}
+
+
+      {{/if}}
+    checkStage: true
+    stopOnRedeploy: true
+    sortWi: true
+    dumpPayloadToConsole: true
+    dumpPayloadToFile: false
+    replaceFile: true
+    getParentsAndChildren: true
+    getAllParents: true
+    getIndirectPullRequests: False
+    stopOnError: False
+    considerPartiallySuccessfulReleases: False
+    customHandlebarsExtensionCode: |
+        module.exports = {
+          hasWorkItemType: function (array, typeName) {
+            return array.some(workItem => workItem.fields['System.WorkItemType'] === typeName);
+          }
+        }
+- task: WikiUpdaterTask@1
+  displayName: Push release notes to WIKI
+  inputs:
+    repo: '${{parameters.wikiRepoUrl}}'
+    filename: '${{parameters.artifactWikiFileName}}.md'
+    replaceFile: false
+    dataIsFile: true
+    sourceFile: 'RELEASE.md'
+    message: 'doc(wiki): update release notes for ${{parameters.artifactName}}'
+    gitname: '$BUILD_REQUESTEDFOR'
+    gitemail: '$BUILD_REQUESTEDFOREMAIL'
+    user: $(WIKI_REPO_USER)
+    password: $(WIKI_REPO_PAT)
+    useAgentToken: false
+    trimLeadingSpecialChar: true
+    fixSpaces: true
+    insertLinefeed: false

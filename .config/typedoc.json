@@ -1,0 +1,14 @@
+{
+    "out": "docs",
+    "name": "agbar-fh-kafka2kafka",
+    "readme": "../README.md",
+    "includeDeclarations": true,
+    "exclude": ["./node_modules", "src/**/*.test.ts", "src/**/*.spec.ts", "src/**/*-test.ts", "src/**/*-spec.ts"],
+    "tsconfig": "./tsconfig.json",
+    "excludeExternals": true,
+    "listInvalidSymbolLinks": true,
+    "categorizeByGroup": false,
+    "excludeNotExported": true,
+    "includeVersion": true,
+    "defaultCategory": []
+}

@@ -1,0 +1,68 @@
+parameters:
+  - name: artifactName
+    displayName: Netin artifact mame
+    type: string
+    default: NameNotSet
+  - name: environments
+    displayName: Artifact environments
+    type: object
+    default:
+      - linux
+      - windows
+
+steps:
+- task: Yarn@3
+  displayName: 'Install node_modules with devDependencies'
+  inputs:
+    projectDirectory: '.'
+    arguments: 'install'
+    customRegistry: 'useFeed'
+    customFeed: '54947cc7-1c0a-4d71-a742-0f2cf64772d8'
+
+- task: VersionJSONFile@2
+  displayName: 'Change tags of version in files'
+  inputs:
+    Path: '$(Build.SourcesDirectory)/artifacts'
+    recursion: True
+    VersionNumber: '$(Build.BuildNumber)'
+    useBuildNumberDirectly: True
+    VersionRegex: '\d+\.\d+\.\d+'
+    versionForJSONFileFormat: '{1}.{2}.{3}'
+    FilenamePattern: '(package.json)|(artifact.dna)'
+    OutputVersion: 'OutputedVersion'
+
+- task: Yarn@3
+  displayName: 'Build artifact from sources'
+  inputs:
+    projectDirectory: '.'
+    arguments: 'run build:production'
+
+- task: Yarn@3
+  displayName: 'Install production dependencies'
+  inputs:
+    projectDirectory: '.'
+    arguments: 'install --production'
+    customRegistry: 'useFeed'
+    customFeed: '54947cc7-1c0a-4d71-a742-0f2cf64772d8'
+
+- ${{ each environment in parameters.environments }}:
+  - task: CopyFiles@2
+    displayName: 'Copying node_modules for deployable'
+    inputs:
+      SourceFolder: 'node_modules'
+      Contents: '**'
+      TargetFolder: 'artifacts/${{environment}}/node_modules'
+  - task: ArchiveFiles@2
+    displayName: 'Archiving the artifact'
+    inputs:
+      rootFolderOrFile: 'artifacts/${{environment}}'
+      includeRootFolder: false
+      archiveType: 'zip'
+      archiveFile: '${{parameters.artifactName}}/${{parameters.artifactName}}-${{environment}}.zip'
+      replaceExistingArchive: true
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish artifacts packages'
+  inputs:
+    PathtoPublish: '${{parameters.artifactName}}'
+    ArtifactName: '${{parameters.artifactName}}'
+    publishLocation: 'Container'

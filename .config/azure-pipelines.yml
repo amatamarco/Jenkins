@@ -1,0 +1,149 @@
+## Template for a monorepository based on GitFlow, Docker and DockerCompose in Netin Development Ecosystem
+name: agbar-fh-kafka2kafka$(Date:yyyyMMdd)$(Rev:.r)
+## CI trigger based on GitFlow
+trigger:
+  - master
+  - develop
+  - release/*
+  - hotfix/*
+  - feature/*
+pr:
+  - master
+  - develop
+## Netin - Pipelines templates repository
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: NetinSystems/NS-DevOps-Pipelines
+      ref: refs/heads/feature/snyk-task-upgrade
+## Netin - General
+variables:
+    ## Artifact name
+  - name: artifactName
+    value: 'agbar-fh-kafka2kafka'
+    ## Node version
+  - name: nodeVersion
+    value: '20.11.1'
+    ## Releases Wiki page
+  - name: artifactWikiFileName
+    value: 'Agbar Firehose Kafka to Kafka'
+    ## Release notes Wiki URL
+  - name: wikiRepoUrl
+    value: 'https://devopmytra.visualstudio.com/P24020018%20-%20Aguas%20de%20Barcelona/_git/AGBAR-Release_Notes-WIKI'
+    ## Release packet extension
+  - template: azure-pipelines.variables.yml
+stages:
+  ## Stage CODE: GitVersion based on GitFlow, unit-tests and code analysis
+  ## Artifact and Docker are only performed in master, develop, release and hotfix branchs
+  - stage: 'APP'
+    displayName: 'Application Build'
+    pool:
+      name: NUCHUB
+      demands:
+        - Agent.OS -equals Linux
+    jobs:
+      - job: 'CODE_QUALITY'
+        displayName: 'Code Quality Assurance'
+        workspace:
+          clean: all
+        timeoutInMinutes: 15
+        steps:
+        - checkout: self
+          clean: true
+          persistCredentials: true
+        - task: CmdLine@2
+          displayName: 'Fetch to unshallow and avoid Object reference not set to an instance of an object error'
+          inputs:
+            script: 'git fetch --unshallow --update-shallow'
+        - template: templates/netin-setup-gitversion.yml@templates
+        - template: templates/netin-setup-node-and-yarn.yml@templates
+          parameters:
+            nodeVersion: '${{variables.nodeVersion}}'
+        - task: Yarn@3
+          displayName: 'Install node_modules with devDependencies'
+          inputs:
+            projectDirectory: '.'
+            arguments: 'install'
+            customRegistry: 'useFeed'
+            customFeed: '54947cc7-1c0a-4d71-a742-0f2cf64772d8'
+        - task: Yarn@3
+          displayName: 'Execute compilation, unit test and mutants'
+          inputs:
+            projectDirectory: '.'
+            arguments: 'run test'
+          continueOnError: true
+        - task: PublishTestResults@2
+          displayName: 'Publishing test result to Azure DevOps'
+          inputs:
+            testResultsFormat: 'JUnit'
+            testResultsFiles: 'test-results.xml'
+            failTaskOnFailedTests: true
+            publishRunAttachments: false
+        - task: reportgenerator@4
+          displayName: 'Create one report for all the repository'
+          inputs:
+            reports: '$(Build.SourcesDirectory)/coverage/cobertura-coverage.xml'
+            targetdir: 'coveragereport'
+            reporttypes: 'HtmlInline_AzurePipelines_Dark;Cobertura;Badges'
+        - task: PublishCodeCoverageResults@1
+          displayName: 'Publish code coverage results to Azure DevOps'
+          inputs:
+            codeCoverageTool: Cobertura
+            summaryFileLocation: '$(Build.SourcesDirectory)/coveragereport/Cobertura.xml'
+            reportDirectory: '$(Build.SourcesDirectory)/coveragereport'          
+        - task: SnykSecurityScan@1
+          displayName: 'Snyk security scan'
+          inputs:
+            serviceConnectionEndpoint: 'Snyk Security Scan'
+            testType: 'app'
+            monitorWhen: 'always'
+            failOnIssues: true
+            organization: 'faeff5f2-2ffb-4c50-9cb3-5c216ff5b6e5'
+            additionalArguments: '--all-projects --target-reference=$(Build.SourceBranch) --exclude=artifacts'
+        - template: templates/netin-test-sonarqube-analysis.yml@templates
+      - job: 'ARTIFACT_BUILD'
+        dependsOn: 'CODE_QUALITY'
+        condition: and(succeeded(),eq(variables.isBuildable, true))
+        displayName: 'Artifact build and publish'
+        workspace:
+          clean: all
+        timeoutInMinutes: 15
+        steps:
+          - checkout: self
+            clean: true
+            persistCredentials: true
+          - template: templates/netin-setup-node-and-yarn.yml@templates
+            parameters:
+              nodeVersion: '${{variables.nodeVersion}}'
+          - template: azure-pipelines.artifact.yml
+            parameters:
+              artifactName: '${{variables.artifactName}}'
+              environments:
+                - linux
+                - windows
+      - job: 'DOCKER_BUILD'
+        dependsOn: 'ARTIFACT_BUILD'
+        condition: and(succeeded(),eq(variables.isBuildable, true))
+        displayName: 'Docker build and publish'
+        workspace:
+          clean: all
+        timeoutInMinutes: 15
+        steps:
+          - template: docker-build-pusblish.yml
+            parameters:
+              artifactName: '${{variables.artifactName}}'
+              imageTag: '${{variables.imageTag}}'
+  - stage: 'RELEASE_NOTES'
+    displayName: 'Release Notes'
+    dependsOn: 'APP'
+    condition: and(succeeded(),eq(variables.isMaster, true))
+    jobs:
+      - job: 'PUBLISH_NOTES'
+        displayName: 'Publish release notes'
+        steps:
+        - template: publish-release-note.yml
+          parameters:
+            artifactName: ${{variables.artifactName}}
+            artifactWikiFileName: ${{variables.artifactWikiFileName}}
+            wikiRepoUrl: ${{variables.wikiRepoUrl}}

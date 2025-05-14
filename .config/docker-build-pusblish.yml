@@ -1,0 +1,48 @@
+parameters:
+  - name: artifactName
+    displayName: Netin artifact mame
+    type: string
+    default: NameNotSet
+  - name: imageTag
+    displayName: image tag
+    type: string
+    default: not-set # this prevent use 'latest' tag to avoid problems with current pipelines that are using this step and not have implemented this parameter
+steps:
+- checkout: none
+
+- task: DownloadPipelineArtifact@2
+  displayName: Download artifact '${{parameters.artifactName}}'
+  inputs:
+    buildType: 'current'
+    artifactName: '${{parameters.artifactName}}'
+    itemPattern: '${{parameters.artifactName}}/*-linux.zip'
+    downloadPath: '$(System.ArtifactsDirectory)'
+  
+- task: ExtractFiles@1
+  displayName: Extract artifact files
+  inputs:
+    archiveFilePatterns: '$(System.ArtifactsDirectory)/**/${{parameters.artifactName}}*.zip'
+    destinationFolder: 'artifact'
+    cleanDestinationFolder: true
+    overwriteExistingFiles: true
+
+- task: DockerInstaller@0
+  displayName: Install Docker CLI
+  inputs:
+    dockerVersion: '20.10.6'
+
+- task: Docker@2
+  displayName: Login to Docker HUB Registry
+  inputs:
+    containerRegistry: 'Docker Registry'
+    command: 'login'
+
+- script: docker buildx create --use
+  displayName: Create docker driver por buildx
+
+- script: docker buildx build --push --tag ghcr.io/mytracontrol/${{parameters.artifactName}}:$(Build.BuildNumber) --tag ghcr.io/mytracontrol/${{parameters.artifactName}}:${{parameters.imageTag}} --platform linux/amd64,linux/arm/v7,linux/arm64/v8 artifact
+  displayName: 'Docker build multi-platform with tag :${{parameters.imageTag}}' 
+
+- script: docker system prune -a --force
+  displayName: Clean containers
+  continueOnError: true
