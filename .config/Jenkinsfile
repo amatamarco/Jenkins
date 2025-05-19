@@ -1,82 +1,63 @@
+
 pipeline {
-    agent any
-    environment {
-        DOCKER_IMAGE = 'my-docker-image:latest'
-        DOCKER_REGISTRY = 'docker.io'
-        GIT_REPO = 'https://github.com/amatamarco/Jenkins.git'
-    }
-    stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'main', url: "$GIT_REPO"
-            }
-        }
+  agent {
+    label 'linux'
+  }
 
-        stage('Install Dependencies') {
-            steps {
-                script {
-                    // Instalar dependencias necesarias para el proyecto
-                    sh 'npm install'
-                }
-            }
-        }
+  environment {
+    ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
+    NODE_VERSION = '20.11.1'
+    // Deja aquí la URL pública de tu repo GitHub
+    GIT_REPO_URL = 'https://github.com/AntonioMataMarco/agbar-fh-kafka2kafka.git'
+  }
 
-        stage('Build') {
-            steps {
-                script {
-                    // Realizar la construcción del proyecto
-                    sh 'npm run build'
-                }
-            }
-        }
+  options {
+    skipDefaultCheckout true
+    timestamps()
+  }
 
-        stage('Generate Release Notes') {
-            steps {
-                // Reemplazar por el método correcto para generar las notas de la versión
-                step([
-                    $class: 'XplatGenerateReleaseNotes',
-                    // Aquí puedes agregar los parámetros específicos que tu tarea o plugin necesite
-                ])
-            }
-        }
+  stages {
 
-        stage('Docker Build') {
-            steps {
-                script {
-                    // Construir la imagen de Docker
-                    sh 'docker build -t $DOCKER_REGISTRY/$DOCKER_IMAGE .'
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                script {
-                    // Iniciar sesión en Docker Registry y hacer push de la imagen
-                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin $DOCKER_REGISTRY'
-                        sh 'docker push $DOCKER_REGISTRY/$DOCKER_IMAGE'
-                    }
-                }
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                script {
-                    // Llamada a los pasos para el despliegue (aquí puedes agregar tus pasos específicos)
-                    echo 'Deploying application...'
-                }
-            }
-        }
+    stage('Checkout GitHub') {
+      steps {
+        checkout([$class: 'GitSCM',
+          branches: [[name: '*/main']],
+          userRemoteConfigs: [[
+            url: env.GIT_REPO_URL
+            // Sin credentialsId, porque es público
+          ]]
+        ])
+      }
     }
 
-    post {
-        success {
-            echo 'Build and deployment completed successfully.'
-        }
-        failure {
-            echo 'There was an issue with the build or deployment.'
-        }
+    stage('Install dependencies') {
+      steps {
+        sh '''
+          # Verifica que Node.js esté instalado en el agente
+          node -v || (echo "Node.js no encontrado" && exit 1)
+
+          # Instala dependencias con yarn
+          yarn install --registry https://registry.npmjs.org
+        '''
+      }
     }
+
+    stage('Build artifact') {
+      steps {
+        sh '''
+          yarn run build:production
+          yarn install --production
+          zip -r ${ARTIFACT_NAME}.zip artifacts
+        '''
+        archiveArtifacts artifacts: "${ARTIFACT_NAME}.zip", fingerprint: true
+      }
+    }
+
+  }
+
+  post {
+    always {
+      cleanWs()
+    }
+  }
 }
