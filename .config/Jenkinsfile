@@ -40,8 +40,9 @@ pipeline {
     stage('Setup Node & Install') {
       steps {
         sh '''
+          export NVM_DIR="$HOME/.nvm"
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          . $HOME/.nvm/nvm.sh
+          . "$NVM_DIR/nvm.sh"
           nvm install ${NODE_VERSION}
           nvm use ${NODE_VERSION}
           yarn install --registry https://registry.npmjs.org
@@ -64,6 +65,7 @@ pipeline {
         sh '''
           yarn run build:production
           yarn install --production
+          mkdir -p artifacts && cp -r dist/* artifacts/
           zip -r ${ARTIFACT_NAME}-${env.BRANCH_NAME}.zip artifacts
         '''
         archiveArtifacts artifacts: "${ARTIFACT_NAME}-${env.BRANCH_NAME}.zip", fingerprint: true
@@ -95,9 +97,7 @@ pipeline {
 
   post {
     always {
-      node {
-        cleanWs()
-      }
+      cleanWs()
     }
   }
 }
