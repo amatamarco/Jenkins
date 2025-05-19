@@ -22,17 +22,20 @@ pipeline {
 
     stage('Checkout & Version') {
       steps {
-        checkout([$class: 'GitSCM',
-          branches: [[name: "*/${env.BRANCH_NAME}"]],
-          userRemoteConfigs: [[
-            url: env.GIT_REPO_URL,
-            credentialsId: env.GIT_CREDENTIALS_ID
-          ]]
-        ])
-        sh 'git fetch --unshallow || true'
         script {
+          // Si no está definido BRANCH_NAME, usar 'main'
+          def branchToBuild = env.BRANCH_NAME ?: 'main'
+          checkout([$class: 'GitSCM',
+            branches: [[name: "*/${branchToBuild}"]],
+            userRemoteConfigs: [[
+              url: env.GIT_REPO_URL,
+              credentialsId: env.GIT_CREDENTIALS_ID
+            ]]
+          ])
+          sh 'git fetch --unshallow || true'
           env.BUILD_VERSION = sh(script: "git describe --tags --always", returnStdout: true).trim()
-          env.IMAGE_TAG = getImageTag(env.BRANCH_NAME)
+          env.IMAGE_TAG = getImageTag(branchToBuild)
+          env.ACTIVE_BRANCH = branchToBuild // para usar en otras etapas
         }
       }
     }
@@ -58,21 +61,21 @@ pipeline {
 
     stage('Build Artifact') {
       when {
-        expression { isBuildableBranch(env.BRANCH_NAME) }
+        expression { isBuildableBranch(env.ACTIVE_BRANCH) }
       }
       steps {
         sh '''
           yarn run build:production
           yarn install --production
-          zip -r ${ARTIFACT_NAME}-${env.BRANCH_NAME}.zip artifacts
+          zip -r ${ARTIFACT_NAME}-${env.ACTIVE_BRANCH}.zip artifacts
         '''
-        archiveArtifacts artifacts: "${ARTIFACT_NAME}-${env.BRANCH_NAME}.zip", fingerprint: true
+        archiveArtifacts artifacts: "${ARTIFACT_NAME}-${env.ACTIVE_BRANCH}.zip", fingerprint: true
       }
     }
 
     stage('Docker Build & Push') {
       when {
-        expression { isBuildableBranch(env.BRANCH_NAME) }
+        expression { isBuildableBranch(env.ACTIVE_BRANCH) }
       }
       steps {
         withCredentials([usernamePassword(
@@ -112,3 +115,4 @@ def getImageTag(String branch) {
   if (env.CHANGE_ID) return 'test'
   return 'unknown'
 }
+
