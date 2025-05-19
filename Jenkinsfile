@@ -4,39 +4,40 @@ pipeline {
   environment {
     // Credenciales Jenkins con ID github-credentials, token de GitHub para autenticación
     GITHUB_CREDENTIALS = credentials('github-credentials')
-    
+
     // Datos para docker login (por ejemplo, para GHCR)
     DOCKER_REGISTRY = 'ghcr.io'
-    DOCKER_REPO = 'amatamarco/jenkins.git'  // Cambia 'mi-repo' por el nombre real
+    DOCKER_REPO = 'amatamarco/jenkins.git'
   }
 
   stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
-    }
-
     stage('Install dependencies') {
       steps {
         script {
-          sh 'yarn install --frozen-lockfile'
+          // Instalamos Yarn solo si no está ya instalado
+          sh '''
+            if ! command -v yarn &> /dev/null; then
+              echo "Yarn no encontrado, instalando..."
+              npm install -g yarn
+            else
+              echo "Yarn ya está instalado"
+            fi
+
+            yarn install --frozen-lockfile
+          '''
         }
       }
     }
 
     stage('Build') {
       steps {
-        script {
-          sh 'yarn build'
-        }
+        sh 'yarn build'
       }
     }
 
     stage('Get version') {
       steps {
         script {
-          // Ejecutar gitversion (debe estar instalado en el agente)
           def version = sh(script: 'gitversion /output json /showvariable SemVer', returnStdout: true).trim()
           echo "Version: ${version}"
           env.APP_VERSION = version
@@ -56,9 +57,9 @@ pipeline {
           // Construcción multiplataforma y push
           sh """
             docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            -t ${DOCKER_REGISTRY}/${DOCKER_REPO}:${env.APP_VERSION} \
-            --push .
+              --platform linux/amd64,linux/arm64 \
+              -t ${DOCKER_REGISTRY}/${DOCKER_REPO}:${env.APP_VERSION} \
+              --push .
           """
         }
       }
@@ -66,21 +67,18 @@ pipeline {
 
     stage('Generate Release Notes') {
       steps {
-        script {
-          // Aquí un ejemplo simplificado, puedes usar tu método habitual
-          sh 'git log -1 --pretty=format:"%h - %s" > release_notes.txt'
-          archiveArtifacts artifacts: 'release_notes.txt', fingerprint: true
-        }
+        sh 'git log -1 --pretty=format:"%h - %s" > release_notes.txt'
+        archiveArtifacts artifacts: 'release_notes.txt', fingerprint: true
       }
     }
   }
 
   post {
     success {
-      echo 'Pipeline completed successfully!'
+      echo '✅ Pipeline completed successfully!'
     }
     failure {
-      echo 'Pipeline failed.'
+      echo '❌ Pipeline failed.'
     }
   }
 }
