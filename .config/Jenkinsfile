@@ -4,7 +4,7 @@ pipeline {
   environment {
     ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
     NODE_VERSION = '20.11.1'
-    GIT_CREDENTIALS_ID = 'github-credentials' // ← tu credencial válida
+    GIT_CREDENTIALS_ID = 'github-credentials'   // tu credencial correcta
     DOCKER_REGISTRY_CREDENTIALS = 'github-credentials'
     GIT_REPO_URL = 'https://github.com/amatamarco/Jenkins.git'
   }
@@ -19,6 +19,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout & Version') {
       steps {
         checkout([$class: 'GitSCM',
@@ -39,9 +40,8 @@ pipeline {
     stage('Setup Node & Install') {
       steps {
         sh '''
-          export NVM_DIR="$HOME/.nvm"
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          . "$NVM_DIR/nvm.sh"
+          . $HOME/.nvm/nvm.sh
           nvm install ${NODE_VERSION}
           nvm use ${NODE_VERSION}
           yarn install --registry https://registry.npmjs.org
@@ -95,22 +95,23 @@ pipeline {
 
   post {
     always {
-      cleanWs()
+      node {
+        cleanWs()
+      }
     }
   }
 }
 
 def isBuildableBranch(String branch) {
-  return branch == 'master' || branch == 'develop' || branch.startsWith('release/') || branch.startsWith('hotfix/') || branch.startsWith('PR-')
+  return branch == 'main' || branch == 'develop' || branch.startsWith('release/') || branch.startsWith('hotfix/') || branch.startsWith('PR-')
 }
 
 def getImageTag(String branch) {
-  if (branch == 'master') return 'latest'
+  if (branch == 'main') return 'latest'
   if (branch == 'develop') return 'alpha'
   if (branch.startsWith('release/') || branch.startsWith('hotfix/')) return 'beta'
   if (branch.startsWith('feature/')) return 'nightly'
   if (env.CHANGE_ID) return 'test'
   return 'unknown'
 }
-
 
