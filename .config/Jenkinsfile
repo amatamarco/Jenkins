@@ -1,97 +1,125 @@
 pipeline {
-  agent any
+  agent { label 'linux' }
 
   environment {
     ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
     NODE_VERSION = '20.11.1'
-    GIT_CREDENTIALS_ID = 'github-credentials'
-    DOCKER_REGISTRY_CREDENTIALS = 'github-credentials'
-    GIT_REPO_URL = 'https://github.com/amatamarco/Jenkins.git'
+    WIKI_REPO_URL = 'https://devopmytra.visualstudio.com/P24020018%20-%20Aguas%20de%20Barcelona/_git/AGBAR-Release_Notes-WIKI'
+    ARTIFACT_WIKI_FILE = 'Agbar Firehose Kafka to Kafka'
   }
 
   options {
-    skipDefaultCheckout(true)
+    timeout(time: 60, unit: 'MINUTES')
     timestamps()
   }
 
-  triggers {
-    pollSCM('* * * * *')
-  }
-
   stages {
-
-    stage('Checkout & Version') {
+    stage('Checkout & GitVersion') {
       steps {
+        checkout scm
         script {
-          // Si no está definido BRANCH_NAME, usar 'main'
-          def branchToBuild = env.BRANCH_NAME ?: 'main'
-          checkout([$class: 'GitSCM',
-            branches: [[name: "*/${branchToBuild}"]],
-            userRemoteConfigs: [[
-              url: env.GIT_REPO_URL,
-              credentialsId: env.GIT_CREDENTIALS_ID
-            ]]
-          ])
-          sh 'git fetch --unshallow || true'
-          env.BUILD_VERSION = sh(script: "git describe --tags --always", returnStdout: true).trim()
-          env.IMAGE_TAG = getImageTag(branchToBuild)
-          env.ACTIVE_BRANCH = branchToBuild // para usar en otras etapas
+          // GitVersion execution: needs gitversion installed or dotnet tool available
+          def gv = sh(script: 'gitversion /output json', returnStdout: true).trim()
+          def gvJson = readJSON text: gv
+          env.VERSION = gvJson.SemVer
+          env.IMAGE_TAG = getImageTag(gvJson.BranchName)
         }
       }
     }
 
-    stage('Setup Node & Install') {
+    stage('Setup Node.js') {
       steps {
-        sh '''
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          . $HOME/.nvm/nvm.sh
-          nvm install ${NODE_VERSION}
-          nvm use ${NODE_VERSION}
-          yarn install --registry https://registry.npmjs.org
-        '''
+        script {
+          // Use nvm or node tool installer to install specific node version
+          echo "Using Node.js version ${env.NODE_VERSION}"
+          // Example with tool installer:
+          // nodejs("${env.NODE_VERSION}")
+        }
+        sh 'node --version'
+        sh 'npm --version'
       }
     }
 
-    stage('Test') {
+    stage('Install Dependencies') {
       steps {
-        sh 'yarn run test || true'
-        junit 'test-results.xml'
+        sh 'yarn install'
+      }
+    }
+
+    stage('Run Tests') {
+      steps {
+        // Run tests but don't fail the build if they fail (like continueOnError: true)
+        catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+          sh 'yarn run test || true'
+        }
+      }
+      post {
+        always {
+          junit 'test-results.xml'
+          // If you want coverage reports, add steps here (if available)
+        }
       }
     }
 
     stage('Build Artifact') {
       when {
-        expression { isBuildableBranch(env.ACTIVE_BRANCH) }
+        expression {
+          return isBuildable(env.BRANCH_NAME)
+        }
       }
       steps {
-        sh '''
-          yarn run build:production
-          yarn install --production
-          zip -r ${ARTIFACT_NAME}-${env.ACTIVE_BRANCH}.zip artifacts
-        '''
-        archiveArtifacts artifacts: "${ARTIFACT_NAME}-${env.ACTIVE_BRANCH}.zip", fingerprint: true
+        sh 'yarn run build:production'
+        sh 'yarn install --production'
+      }
+      post {
+        success {
+          archiveArtifacts artifacts: 'artifacts/**/*', allowEmptyArchive: true
+          stash includes: 'artifacts/**/*', name: 'artifact'
+        }
       }
     }
 
     stage('Docker Build & Push') {
       when {
-        expression { isBuildableBranch(env.ACTIVE_BRANCH) }
+        expression {
+          return isBuildable(env.BRANCH_NAME)
+        }
       }
       steps {
-        withCredentials([usernamePassword(
-          credentialsId: env.DOCKER_REGISTRY_CREDENTIALS,
-          usernameVariable: 'DOCKER_USER',
-          passwordVariable: 'DOCKER_PASS'
-        )]) {
+        unstash 'artifact'
+        withDockerRegistry(credentialsId: 'docker-registry-credentials') {
           sh '''
-            echo "$DOCKER_PASS" | docker login ghcr.io -u "$DOCKER_USER" --password-stdin
-            docker buildx create --use || true
-            docker buildx build --push \
-              --tag ghcr.io/amatamarco/${ARTIFACT_NAME}:${BUILD_VERSION} \
-              --tag ghcr.io/amatamarco/${ARTIFACT_NAME}:${IMAGE_TAG} \
-              --platform linux/amd64,linux/arm/v7,linux/arm64/v8 .
+            docker buildx create --use
+            docker buildx build --push --tag ghcr.io/mytracontrol/${ARTIFACT_NAME}:${VERSION} --tag ghcr.io/mytracontrol/${ARTIFACT_NAME}:${IMAGE_TAG} --platform linux/amd64,linux/arm/v7,linux/arm64/v8 artifact
+            docker system prune -a --force || true
           '''
         }
+      }
+    }
+
+    stage('Publish Release Notes') {
+      when {
+        branch 'master'
+      }
+      steps {
+        // Here you can generate release notes and push to your wiki repo
+        // This part requires scripting or plugins. For example:
+        script {
+          sh '''
+            echo "Generating release notes for ${ARTIFACT_NAME}"
+            # Implement your release notes generation here
+          '''
+        }
+        // Push to wiki repo - assuming credentials and git config are setup
+        // This is just a placeholder; adapt according to your environment
+        sh '''
+          git clone ${WIKI_REPO_URL} wiki-repo
+          cd wiki-repo
+          echo "Release notes for ${ARTIFACT_NAME} version ${VERSION}" > ${ARTIFACT_WIKI_FILE}.md
+          git add ${ARTIFACT_WIKI_FILE}.md
+          git commit -m "doc(wiki): update release notes for ${ARTIFACT_NAME} ${VERSION}"
+          git push origin main
+        '''
       }
     }
   }
@@ -103,15 +131,27 @@ pipeline {
   }
 }
 
-def isBuildableBranch(String branch) {
-  return branch == 'main' || branch == 'develop' || branch.startsWith('release/') || branch.startsWith('hotfix/') || branch.startsWith('PR-')
+def isBuildable(String branch) {
+  return branch == 'master' || branch == 'develop' || branch.startsWith('release/') || branch.startsWith('hotfix/') || branch.startsWith('feature/') || env.BRANCH_NAME == 'PR'
 }
 
 def getImageTag(String branch) {
-  if (branch == 'main') return 'latest'
-  if (branch == 'develop') return 'alpha'
-  if (branch.startsWith('release/') || branch.startsWith('hotfix/')) return 'beta'
-  if (branch.startsWith('feature/')) return 'nightly'
-  if (env.CHANGE_ID) return 'test'
-  return 'unknown'
+  if (branch.startsWith('feature/')) {
+    return 'nighty'
+  }
+  if (branch.startsWith('release/') || branch.startsWith('hotfix/')) {
+    return 'beta'
+  }
+  if (branch == 'develop') {
+    return 'alpha'
+  }
+  if (branch == 'master') {
+    return 'latest'
+  }
+  if (branch == 'PR') {
+    return 'test'
+  }
+  return 'not-set'
 }
+
+
