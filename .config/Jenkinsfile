@@ -1,53 +1,94 @@
-
 pipeline {
   agent any
-  }
 
   environment {
     ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
     NODE_VERSION = '20.11.1'
+    IMAGE_TAG = getImageTag()
+    GIT_CREDENTIALS_ID = 'your-git-credentials-id' // Actualízalo si usas repo privado
+    DOCKER_REGISTRY_CREDENTIALS = 'github-credentials' // Usa el ID configurado en Jenkins
     GIT_REPO_URL = 'https://github.com/amatamarco/Jenkins.git'
   }
 
   options {
-    skipDefaultCheckout true
+    skipDefaultCheckout(true)
     timestamps()
+  }
+
+  triggers {
+    pollSCM('* * * * *')
   }
 
   stages {
 
-    stage('Checkout GitHub') {
+    stage('Checkout & Version') {
       steps {
         checkout([$class: 'GitSCM',
-          branches: [[name: '*/main']],
+          branches: [[name: "*/${env.BRANCH_NAME}"]],
           userRemoteConfigs: [[
-            url: env.GIT_REPO_URL
-            // Sin credentialsId, porque es público
+            url: env.GIT_REPO_URL,
+            credentialsId: env.GIT_CREDENTIALS_ID
           ]]
         ])
+        sh 'git fetch --unshallow || true'
+        script {
+          env.BUILD_VERSION = sh(script: "git describe --tags --always", returnStdout: true).trim()
+        }
       }
     }
 
-    stage('Install dependencies') {
+    stage('Setup Node & Install') {
       steps {
         sh '''
-          # Verifica que Node.js esté instalado en el agente
-          node -v || (echo "Node.js no encontrado" && exit 1)
-
-          # Instala dependencias con yarn
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+          . $HOME/.nvm/nvm.sh
+          nvm install ${NODE_VERSION}
+          nvm use ${NODE_VERSION}
           yarn install --registry https://registry.npmjs.org
         '''
       }
     }
 
-    stage('Build artifact') {
+    stage('Test') {
+      steps {
+        sh 'yarn run test || true'
+        junit 'test-results.xml'
+      }
+    }
+
+    stage('Build Artifact') {
+      when {
+        expression { isBuildableBranch(env.BRANCH_NAME) }
+      }
       steps {
         sh '''
           yarn run build:production
           yarn install --production
-          zip -r ${ARTIFACT_NAME}.zip artifacts
+          zip -r ${ARTIFACT_NAME}-${env.BRANCH_NAME}.zip artifacts
         '''
-        archiveArtifacts artifacts: "${ARTIFACT_NAME}.zip", fingerprint: true
+        archiveArtifacts artifacts: "${ARTIFACT_NAME}-${env.BRANCH_NAME}.zip", fingerprint: true
+      }
+    }
+
+    stage('Docker Build & Push') {
+      when {
+        expression { isBuildableBranch(env.BRANCH_NAME) }
+      }
+      steps {
+        withCredentials([usernamePassword(
+          credentialsId: env.DOCKER_REGISTRY_CREDENTIALS,
+          usernameVariable: 'DOCKER_USER',
+          passwordVariable: 'DOCKER_PASS'
+        )]) {
+          sh '''
+            echo "$DOCKER_PASS" | docker login ghcr.io -u "$DOCKER_USER" --password-stdin
+            docker buildx create --use || true
+            docker buildx build --push \
+              --tag ghcr.io/amatamarco/${ARTIFACT_NAME}:${BUILD_VERSION} \
+              --tag ghcr.io/amatamarco/${ARTIFACT_NAME}:${IMAGE_TAG} \
+              --platform linux/amd64,linux/arm/v7,linux/arm64/v8 .
+          '''
+        }
       }
     }
 
@@ -59,3 +100,18 @@ pipeline {
     }
   }
 }
+
+def isBuildableBranch(String branch) {
+  return branch == 'master' || branch == 'develop' || branch.startsWith('release/') || branch.startsWith('hotfix/') || branch.startsWith('PR-')
+}
+
+def getImageTag() {
+  def branch = env.BRANCH_NAME
+  if (branch == 'master') return 'latest'
+  if (branch == 'develop') return 'alpha'
+  if (branch.startsWith('release/') || branch.startsWith('hotfix/')) return 'beta'
+  if (branch.startsWith('feature/')) return 'nightly'
+  if (env.CHANGE_ID) return 'test'
+  return 'unknown'
+}
+
