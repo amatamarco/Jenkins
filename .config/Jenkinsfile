@@ -4,7 +4,7 @@ pipeline {
   environment {
     ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
     NODE_VERSION = '20.11.1'
-    GIT_CREDENTIALS_ID = 'github-credentials'   // tu credencial correcta
+    GIT_CREDENTIALS_ID = 'github-credentials'
     DOCKER_REGISTRY_CREDENTIALS = 'github-credentials'
     GIT_REPO_URL = 'https://github.com/amatamarco/Jenkins.git'
   }
@@ -95,9 +95,7 @@ pipeline {
 
   post {
     always {
-      node {
-        cleanWs()
-      }
+      cleanWs()
     }
   }
 }
@@ -114,4 +112,3 @@ def getImageTag(String branch) {
   if (env.CHANGE_ID) return 'test'
   return 'unknown'
 }
-
