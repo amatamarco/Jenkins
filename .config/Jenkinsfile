@@ -7,8 +7,7 @@ pipeline {
   environment {
     ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
     NODE_VERSION = '20.11.1'
-    // Deja aquí la URL pública de tu repo GitHub
-    GIT_REPO_URL = 'https://github.com/AntonioMataMarco/agbar-fh-kafka2kafka.git'
+    GIT_REPO_URL = 'https://github.com/amatamarco/Jenkins.git'
   }
 
   options {
