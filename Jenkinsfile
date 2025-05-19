@@ -1,5 +1,10 @@
 pipeline {
-  agent any
+  agent {
+    docker {
+      image 'node:20.11.1'
+      args '-u root'
+    }
+  }
 
   environment {
     GITHUB_CREDENTIALS = credentials('github-credentials')
