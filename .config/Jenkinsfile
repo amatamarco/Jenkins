@@ -4,9 +4,8 @@ pipeline {
   environment {
     ARTIFACT_NAME = 'agbar-fh-kafka2kafka'
     NODE_VERSION = '20.11.1'
-    IMAGE_TAG = getImageTag()
-    GIT_CREDENTIALS_ID = 'your-git-credentials-id' // Actualízalo si usas repo privado
-    DOCKER_REGISTRY_CREDENTIALS = 'github-credentials' // Usa el ID configurado en Jenkins
+    GIT_CREDENTIALS_ID = 'your-git-credentials-id'
+    DOCKER_REGISTRY_CREDENTIALS = 'github-credentials'
     GIT_REPO_URL = 'https://github.com/amatamarco/Jenkins.git'
   }
 
@@ -33,6 +32,7 @@ pipeline {
         sh 'git fetch --unshallow || true'
         script {
           env.BUILD_VERSION = sh(script: "git describe --tags --always", returnStdout: true).trim()
+          env.IMAGE_TAG = getImageTag(env.BRANCH_NAME)
         }
       }
     }
@@ -91,12 +91,13 @@ pipeline {
         }
       }
     }
-
   }
 
   post {
     always {
-      cleanWs()
+      node {
+        cleanWs()
+      }
     }
   }
 }
@@ -105,8 +106,7 @@ def isBuildableBranch(String branch) {
   return branch == 'master' || branch == 'develop' || branch.startsWith('release/') || branch.startsWith('hotfix/') || branch.startsWith('PR-')
 }
 
-def getImageTag() {
-  def branch = env.BRANCH_NAME
+def getImageTag(String branch) {
   if (branch == 'master') return 'latest'
   if (branch == 'develop') return 'alpha'
   if (branch.startsWith('release/') || branch.startsWith('hotfix/')) return 'beta'
