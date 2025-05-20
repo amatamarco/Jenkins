@@ -1,7 +1,30 @@
 pipeline {
     agent any
 
+    //environment {
+        // Puedes exportar la versión a una variable de entorno si lo necesitas
+        // Por ejemplo: APP_VERSION = ''
+    //}
+
     stages {
+        stage('Versionado GitVersion') {
+            steps {
+                // Instala GitVersion como dotnet tool global (idempotente, no da error si ya está)
+                sh 'dotnet tool install --global GitVersion.Tool || true'
+                // Ejecuta GitVersion y exporta la versión como variable de entorno para el resto del pipeline
+                sh '''
+                    export PATH="$PATH:$HOME/.dotnet/tools"
+                    VERSION_INFO=$(~/.dotnet/tools/gitversion /output json)
+                    echo "$VERSION_INFO" > gitversion.json
+                    VERSION=$(cat gitversion.json | jq -r .NuGetVersionV2)
+                    echo "Versión detectada por GitVersion: $VERSION"
+                    echo "APP_VERSION=$VERSION" >> $GITHUB_ENV || echo "APP_VERSION=$VERSION" > .jenkins_env
+                '''
+                // Imprime el contenido por consola para debug
+                sh 'cat gitversion.json'
+            }
+        }
+
         stage('Mostrar contenido de .config') {
             steps {
                 sh 'ls -lh .config'
@@ -105,6 +128,4 @@ pipeline {
         }
     }
 }
-
-
 
