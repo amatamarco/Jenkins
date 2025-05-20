@@ -7,20 +7,25 @@ pipeline {
     //}
 
     stages {
+        stages {
+        stage('Descargar GitVersion') {
+            steps {
+                sh '''
+                    wget -q https://github.com/GitTools/GitVersion/releases/download/5.12.0/gitversion-ubuntu.22.04-x64-5.12.0.tar.gz
+                    mkdir -p gitversion-bin
+                    tar -xzf gitversion-ubuntu.22.04-x64-5.12.0.tar.gz -C gitversion-bin
+                '''
+            }
+        }
         stage('Versionado GitVersion') {
             steps {
-                // Instala GitVersion como dotnet tool global (idempotente, no da error si ya está)
-                sh 'dotnet tool install --global GitVersion.Tool || true'
-                // Ejecuta GitVersion y exporta la versión como variable de entorno para el resto del pipeline
                 sh '''
-                    export PATH="$PATH:$HOME/.dotnet/tools"
-                    VERSION_INFO=$(~/.dotnet/tools/gitversion /output json)
+                    VERSION_INFO=$(./gitversion-bin/gitversion /output json)
                     echo "$VERSION_INFO" > gitversion.json
                     VERSION=$(cat gitversion.json | jq -r .NuGetVersionV2)
                     echo "Versión detectada por GitVersion: $VERSION"
-                    echo "APP_VERSION=$VERSION" >> $GITHUB_ENV || echo "APP_VERSION=$VERSION" > .jenkins_env
+                    echo "APP_VERSION=$VERSION" > .jenkins_env
                 '''
-                // Imprime el contenido por consola para debug
                 sh 'cat gitversion.json'
             }
         }
