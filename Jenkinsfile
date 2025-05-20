@@ -2,8 +2,8 @@ pipeline {
   agent any
 
   tools {
-    nodejs '20.11.1'   // Instalación de NodeJS en Jenkins
-    git     'Default'  // Instalación de Git en Jenkins
+    nodejs '20.11.1'     // Instalación de NodeJS en Jenkins
+    git     'Default'    // Instalación de Git en Jenkins
   }
 
   environment {
@@ -27,12 +27,12 @@ pipeline {
         }
       }
       steps {
-        // Instalamos GitVersion.Tool para .NET
+        // Instala GitVersion.Tool como herramienta global de .NET
         sh 'dotnet tool install --global GitVersion.Tool --version 5.*'
-        // Añadimos al PATH las herramientas de .NET
+        // Añade las herramientas de .NET al PATH
         sh 'export PATH="$HOME/.dotnet/tools:$PATH"'
-        // Ejecutamos GitVersion con tu configuración
-        sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
+        // Ejecuta GitVersion usando el binario dotnet-gitversion
+        sh 'dotnet-gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
           def v = readJSON file: 'version.json'
           env.VERSION = v.SemVer
@@ -121,3 +121,4 @@ pipeline {
     }
   }
 }
+
