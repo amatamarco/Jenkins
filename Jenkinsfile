@@ -7,7 +7,6 @@ pipeline {
     //}
 
     stages {
-        stages {
         stage('Descargar GitVersion') {
             steps {
                 sh '''
