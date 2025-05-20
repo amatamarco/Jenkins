@@ -20,15 +20,26 @@ pipeline {
     }
 
     stage('Versioning') {
+      agent {
+        docker {
+          image 'mcr.microsoft.com/dotnet/sdk:6.0' // Contenedor con dotnet para usar GitVersion.Tool
+          args '-u root'
+        }
+      }
       steps {
-        // Instala GitVersion CLI vía npm si no está disponible
-        sh 'npm install -g gitversion-cli'
+        // Instala GitVersion.Tool como global tool de .NET
+        sh 'dotnet tool install --global GitVersion.Tool --version 5.*'
+        // Añade al PATH local del pipeline
+        sh 'export PATH="$HOME/.dotnet/tools:$PATH"'
         // Ejecuta GitVersion con tu .config/GitVersion.yml
         sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
           def v = readJSON file: 'version.json'
           env.VERSION = v.SemVer
           echo "Calculated version: ${VERSION}"
+        }
+      }
+    }"
         }
       }
     }
