@@ -27,6 +27,20 @@ pipeline {
         }
       }
       steps {
+        // Instalación y ejecución de GitVersion.Tool en un solo bloque
+        sh '''
+          dotnet tool install --global GitVersion.Tool --version 5.* \
+            && export PATH="$HOME/.dotnet/tools:$PATH" \
+            && dotnet-gitversion /config .config/GitVersion.yml /output json > version.json
+        '''
+        script {
+          def v = readJSON file: 'version.json'
+          env.VERSION = v.SemVer
+          echo "Calculated version: ${VERSION}"
+        }
+      }
+    }
+      steps {
         // Instala GitVersion.Tool como herramienta global de .NET
         sh 'dotnet tool install --global GitVersion.Tool --version 5.*'
         // Añade las herramientas de .NET al PATH
@@ -121,4 +135,3 @@ pipeline {
     }
   }
 }
-
