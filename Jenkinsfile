@@ -2,8 +2,8 @@ pipeline {
   agent any
 
   tools {
-    nodejs '20.11.1'     // Debes tener esta instalación en Manage Jenkins → Global Tool Configuration
-    git     'Default'    // O el nombre que uses para tu instalación de Git
+    nodejs '20.11.1'   // Instalación de NodeJS en Jenkins
+    git     'Default'  // Instalación de Git en Jenkins
   }
 
   environment {
@@ -22,24 +22,21 @@ pipeline {
     stage('Versioning') {
       agent {
         docker {
-          image 'mcr.microsoft.com/dotnet/sdk:6.0' // Contenedor con dotnet para usar GitVersion.Tool
+          image 'mcr.microsoft.com/dotnet/sdk:6.0'
           args '-u root'
         }
       }
       steps {
-        // Instala GitVersion.Tool como global tool de .NET
+        // Instalamos GitVersion.Tool para .NET
         sh 'dotnet tool install --global GitVersion.Tool --version 5.*'
-        // Añade al PATH local del pipeline
+        // Añadimos al PATH las herramientas de .NET
         sh 'export PATH="$HOME/.dotnet/tools:$PATH"'
-        // Ejecuta GitVersion con tu .config/GitVersion.yml
+        // Ejecutamos GitVersion con tu configuración
         sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
           def v = readJSON file: 'version.json'
           env.VERSION = v.SemVer
           echo "Calculated version: ${VERSION}"
-        }
-      }
-    }"
         }
       }
     }
