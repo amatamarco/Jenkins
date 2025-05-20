@@ -10,16 +10,16 @@ pipeline {
         stage('Validar sintaxis YAML') {
             steps {
                 sh '''
-                    npm install -g yaml-lint || true
                     for f in .config/*.yml .config/*.yaml; do
-                      if [ -f "$f" ]; then
+                    if [ -f "$f" ]; then
                         echo "Validando $f"
-                        yaml-lint "$f"
-                      fi
+                        npx yaml-lint "$f"
+                    fi
                     done
                 '''
             }
         }
+
         stage('Validar sintaxis JSON') {
             steps {
                 sh '''
