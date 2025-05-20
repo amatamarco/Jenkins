@@ -1,0 +1,113 @@
+pipeline {
+    agent any
+
+    environment {
+        # Puedes definir aquí variables globales si necesitas, por ejemplo:
+        # NODE_OPTIONS = '--max_old_space_size=4096'
+    }
+
+    stages {
+        stage('Mostrar contenido de .config') {
+            steps {
+                sh 'ls -lh .config'
+            }
+        }
+
+        stage('Validar sintaxis YAML') {
+            steps {
+                sh '''
+                    for f in .config/*.yml .config/*.yaml; do
+                        if [ -f "$f" ]; then
+                            echo "Validando $f"
+                            npx yaml-lint "$f"
+                        fi
+                    done
+                '''
+            }
+        }
+
+        stage('Validar sintaxis JSON') {
+            steps {
+                sh '''
+                    for f in .config/*.json; do
+                        if [ -f "$f" ]; then
+                            echo "Validando $f"
+                            cat "$f" | python3 -m json.tool > /dev/null
+                        fi
+                    done
+                '''
+            }
+        }
+
+        stage('Validar sintaxis Markdown') {
+            steps {
+                sh '''
+                    for f in .config/*.md; do
+                        if [ -f "$f" ]; then
+                            echo "Validando (sólo head) $f"
+                            head -5 "$f"
+                        fi
+                    done
+                '''
+            }
+        }
+
+        stage('Instalar dependencias npm si existe package.json') {
+            when {
+                expression { fileExists('package.json') }
+            }
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Generar documentación TypeDoc') {
+            when {
+                expression { fileExists('.config/typedoc.json') }
+            }
+            steps {
+                sh '''
+                    if [ -f .config/typedoc.json ]; then
+                        echo "Generando documentación con TypeDoc"
+                        npx typedoc --options .config/typedoc.json || echo "Fallo en TypeDoc"
+                    fi
+                '''
+            }
+        }
+
+        stage('Ejecutar thirdPartyCheck.js si existe') {
+            when {
+                expression { fileExists('.config/thirdPartyCheck.js') }
+            }
+            steps {
+                sh '''
+                    echo "Ejecutando thirdPartyCheck.js para análisis de dependencias"
+                    node .config/thirdPartyCheck.js || echo "Error en thirdPartyCheck.js"
+                '''
+            }
+        }
+
+        stage('Simulación build de artefacto (manual)') {
+            steps {
+                echo 'Si quieres simular la build del artefacto puedes añadir aquí comandos npm/yarn, por ejemplo:'
+                echo 'npm run build:production o yarn build:production'
+                //sh 'npm run build:production' // Descomenta si tu proyecto lo soporta
+            }
+        }
+
+        stage('Docker build (opcional)') {
+            steps {
+                echo 'Si tienes un Dockerfile puedes construir la imagen aquí. Añade el Dockerfile o docker-compose.yml si quieres automatizarlo.'
+                //sh 'docker build -t tuimagen:latest .'
+            }
+        }
+
+        stage('Release Notes (Solo Azure DevOps)') {
+            steps {
+                echo 'La generación y push de release notes solo se puede hacer automáticamente en Azure DevOps.'
+                echo 'En Jenkins sólo se podría simular, o dejar un placeholder.'
+            }
+        }
+    }
+}
+
