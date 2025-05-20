@@ -1,5 +1,4 @@
 pipeline {
-  // Usamos un contenedor Docker con Node.js 20.11.1 preinstalado
   agent {
     docker {
       image 'node:20.11.1'
@@ -15,23 +14,16 @@ pipeline {
 
   stages {
 
-    stage('Checkout & Fetch') {
+    stage('Checkout') {
       steps {
-        // Usamos credenciales de GitHub para el checkout
-        withCredentials([usernamePassword(
-          credentialsId: 'github-credentials',
-          usernameVariable: 'GIT_USER',
-          passwordVariable: 'GIT_TOKEN'
-        )]) {
-          sh "git clone https://${GIT_USER}:${GIT_TOKEN}@github.com/amatamarco/Jenkins.git ."
-          sh 'git fetch --prune --unshallow || true'
-        }
+        // Utilizamos el SCM configurado en el job (credenciales desde la configuración del repositorio)
+        checkout scm
       }
     }
 
     stage('Versioning') {
       steps {
-        // Instala GitVersion CLI en el contenedor
+        // Instalación de GitVersion CLI dentro del contenedor
         sh 'npm install -g gitversion-cli'
         sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
@@ -94,13 +86,13 @@ pipeline {
           usernameVariable: 'DOCKER_USER',
           passwordVariable: 'DOCKER_PASS'
         )]) {
-          sh "echo ${DOCKER_PASS} | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin"
+          sh "echo $DOCKER_PASS | docker login $DOCKER_REGISTRY -u $DOCKER_USER --password-stdin"
           sh 'docker buildx create --use'
           sh """
             docker buildx build \
               --push \
-              --tag ${IMAGE_NAME}:${env.VERSION} \
-              --tag ${IMAGE_NAME}:latest \
+              --tag $IMAGE_NAME:$VERSION \
+              --tag $IMAGE_NAME:latest \
               --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
               artifact
           """
@@ -112,7 +104,7 @@ pipeline {
       when { branch 'master' }
       steps {
         sh '''
-          echo "## Release ${env.VERSION} - $(date +%Y-%m-%d)" > RELEASE_NOTES.md
+          echo "## Release $VERSION - $(date +%Y-%m-%d)" > RELEASE_NOTES.md
           git log --pretty=format:"* %s" origin/master..HEAD >> RELEASE_NOTES.md
         '''
         archiveArtifacts artifacts: 'RELEASE_NOTES.md', fingerprint: true
@@ -127,3 +119,4 @@ pipeline {
     }
   }
 }
+
