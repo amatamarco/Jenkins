@@ -15,14 +15,15 @@ pipeline {
   stages {
     stage('Checkout') {
       steps {
-        // El propio pipeline tomará las credenciales de GitHub configuradas
         checkout scm
       }
     }
 
     stage('Versioning') {
       steps {
-        // Lanza GitVersion con tu .config/GitVersion.yml
+        // Instala GitVersion CLI vía npm si no está disponible
+        sh 'npm install -g gitversion-cli'
+        // Ejecuta GitVersion con tu .config/GitVersion.yml
         sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
           def v = readJSON file: 'version.json'
@@ -34,7 +35,6 @@ pipeline {
 
     stage('Install & Audit') {
       steps {
-        // Instalamos dev-deps y auditamos licencias
         sh 'yarn install --frozen-lockfile'
         sh 'node .config/thirdPartyCheck.js --files'
       }
@@ -42,9 +42,7 @@ pipeline {
 
     stage('Build Artifact') {
       steps {
-        // Compilamos en modo producción
         sh 'yarn run build:production'
-        // Aseguramos solo deps de producción (igual que en azure-pipelines.artifact.yml)
         sh 'yarn install --production'
       }
     }
@@ -64,14 +62,12 @@ pipeline {
 
     stage('Mutation Tests') {
       steps {
-        // Stryker según .config/stryker.config.js
         sh 'npx stryker run --config .config/stryker.config.js'
       }
     }
 
     stage('Generate Docs') {
       steps {
-        // TypeDoc según .config/typedoc.json
         sh 'npx typedoc --options .config/typedoc.json'
         archiveArtifacts artifacts: 'docs/**', fingerprint: true
       }
@@ -79,23 +75,21 @@ pipeline {
 
     stage('Docker Build & Push') {
       steps {
-        // Usa tu credencial de Docker Hub
         withCredentials([usernamePassword(
           credentialsId: 'dockerhub-credentials',
           usernameVariable: 'DOCKER_USER',
           passwordVariable: 'DOCKER_PASS'
         )]) {
-          sh "echo \$DOCKER_PASS | docker login \$DOCKER_REGISTRY -u \$DOCKER_USER --password-stdin"
+          sh "echo \"$DOCKER_PASS\" | docker login $DOCKER_REGISTRY -u $DOCKER_USER --password-stdin"
           sh 'docker buildx create --use'
-          sh """
-            docker buildx build \\
-              --push \\
-              --tag ${IMAGE_NAME}:${VERSION} \\
-              --tag ${IMAGE_NAME}:latest \\
-              --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \\
+          sh '''
+            docker buildx build \
+              --push \
+              --tag ${IMAGE_NAME}:${VERSION} \
+              --tag ${IMAGE_NAME}:latest \
+              --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
               artifact
-          """
-          // Limpieza de imágenes intermedias
+          '''
           sh 'docker system prune -a --force || true'
         }
       }
@@ -104,7 +98,6 @@ pipeline {
     stage('Release Notes') {
       when { branch 'master' }
       steps {
-        // Genera un RELEASE.md básico
         sh '''
           echo "## 🚀 Release ${VERSION} - $(date +%Y-%m-%d)" > RELEASE.md
           git log --pretty=format:"* %s" origin/master..HEAD >> RELEASE.md
