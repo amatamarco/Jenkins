@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        // Ejemplo: NODE_OPTIONS = '--max_old_space_size=4096'
-    }
-
     stages {
         stage('Mostrar contenido de .config') {
             steps {
@@ -86,7 +82,7 @@ pipeline {
             }
         }
 
-        stage('Simulación build de artefacto (manual)') {
+        stage('Simulación build de artifact (manual)') {
             steps {
                 echo 'Si se quiere simular la build del artifact, se puede añadir aquí comandos npm/yarn, por ejemplo:'
                 echo 'npm run build:production o yarn build:production'
@@ -109,5 +105,6 @@ pipeline {
         }
     }
 }
+
 
 
