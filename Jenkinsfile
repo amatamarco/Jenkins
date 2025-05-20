@@ -1,9 +1,8 @@
 pipeline {
-  agent {
-    docker {
-      image 'node:20.11.1'
-      args  '--user node'
-    }
+  agent { label 'linux' }
+
+  tools {
+    nodejs '20.11.1'        
   }
 
   environment {
@@ -16,14 +15,14 @@ pipeline {
 
     stage('Checkout') {
       steps {
-        // Utilizamos el SCM configurado en el job (credenciales desde la configuración del repositorio)
+        // Clona usando las credenciales configuradas en el job
         checkout scm
       }
     }
 
     stage('Versioning') {
       steps {
-        // Instalación de GitVersion CLI dentro del contenedor
+        // Instala GitVersion CLI
         sh 'npm install -g gitversion-cli'
         sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
@@ -68,8 +67,7 @@ pipeline {
     stage('Package Artifacts') {
       steps {
         script {
-          def envs = ['linux','windows']
-          envs.each { e ->
+          ['linux', 'windows'].each { e ->
             sh "mkdir -p artifacts/${e}"
             sh "cp -R node_modules artifacts/${e}/node_modules"
             sh "zip -r ${ARTIFACT_NAME}-${e}.zip artifacts/${e}"
@@ -86,16 +84,16 @@ pipeline {
           usernameVariable: 'DOCKER_USER',
           passwordVariable: 'DOCKER_PASS'
         )]) {
-          sh "echo $DOCKER_PASS | docker login $DOCKER_REGISTRY -u $DOCKER_USER --password-stdin"
+          sh "echo \"$DOCKER_PASS\" | docker login ${DOCKER_REGISTRY} -u $DOCKER_USER --password-stdin"
           sh 'docker buildx create --use'
-          sh """
+          sh '''
             docker buildx build \
               --push \
-              --tag $IMAGE_NAME:$VERSION \
-              --tag $IMAGE_NAME:latest \
+              --tag ${IMAGE_NAME}:${VERSION} \
+              --tag ${IMAGE_NAME}:latest \
               --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
               artifact
-          """
+          '''
         }
       }
     }
@@ -104,7 +102,7 @@ pipeline {
       when { branch 'master' }
       steps {
         sh '''
-          echo "## Release $VERSION - $(date +%Y-%m-%d)" > RELEASE_NOTES.md
+          echo "## Release ${VERSION} - $(date +%Y-%m-%d)" > RELEASE_NOTES.md
           git log --pretty=format:"* %s" origin/master..HEAD >> RELEASE_NOTES.md
         '''
         archiveArtifacts artifacts: 'RELEASE_NOTES.md', fingerprint: true
