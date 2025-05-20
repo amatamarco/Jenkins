@@ -1,0 +1,11 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Test') {
+            steps {
+                echo "Funciona el Jenkinsfile desde la carpeta .config"
+            }
+        }
+    }
+}
