@@ -1,8 +1,8 @@
 pipeline {
-  agent { label 'linux' }
+  agent any   // Usamos cualquier nodo disponible
 
   tools {
-    nodejs '20.11.1'        
+    nodejs '20.11.1'  // Debe coincidir con el nombre en Global Tool Configuration
   }
 
   environment {
@@ -15,14 +15,14 @@ pipeline {
 
     stage('Checkout') {
       steps {
-        // Clona usando las credenciales configuradas en el job
+        // Checkout usando la configuración SCM del job
         checkout scm
       }
     }
 
     stage('Versioning') {
       steps {
-        // Instala GitVersion CLI
+        // Instala GitVersion CLI si no está presente
         sh 'npm install -g gitversion-cli'
         sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
@@ -67,7 +67,7 @@ pipeline {
     stage('Package Artifacts') {
       steps {
         script {
-          ['linux', 'windows'].each { e ->
+          ['linux','windows'].each { e ->
             sh "mkdir -p artifacts/${e}"
             sh "cp -R node_modules artifacts/${e}/node_modules"
             sh "zip -r ${ARTIFACT_NAME}-${e}.zip artifacts/${e}"
@@ -84,7 +84,7 @@ pipeline {
           usernameVariable: 'DOCKER_USER',
           passwordVariable: 'DOCKER_PASS'
         )]) {
-          sh "echo \"$DOCKER_PASS\" | docker login ${DOCKER_REGISTRY} -u $DOCKER_USER --password-stdin"
+          sh "echo \"$DOCKER_PASS\" | docker login $DOCKER_REGISTRY -u $DOCKER_USER --password-stdin"
           sh 'docker buildx create --use'
           sh '''
             docker buildx build \
@@ -117,4 +117,3 @@ pipeline {
     }
   }
 }
-
