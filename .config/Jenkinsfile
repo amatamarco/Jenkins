@@ -2,10 +2,53 @@ pipeline {
     agent any
 
     stages {
-        stage('Test') {
+        stage('Mostrar contenido de .config') {
             steps {
-                echo "Funciona el Jenkinsfile desde la carpeta .config"
+                sh 'ls -l .config'
+            }
+        }
+        stage('Validar sintaxis YAML') {
+            steps {
+                sh '''
+                    npm install -g yaml-lint || true
+                    for f in .config/*.yml .config/*.yaml; do
+                      if [ -f "$f" ]; then
+                        echo "Validando $f"
+                        yaml-lint "$f"
+                      fi
+                    done
+                '''
+            }
+        }
+        stage('Validar sintaxis JSON') {
+            steps {
+                sh '''
+                    for f in .config/*.json; do
+                      if [ -f "$f" ]; then
+                        echo "Validando $f"
+                        cat "$f" | python3 -m json.tool > /dev/null
+                      fi
+                    done
+                '''
+            }
+        }
+        stage('Validar sintaxis Markdown') {
+            steps {
+                sh '''
+                    for f in .config/*.md; do
+                      if [ -f "$f" ]; then
+                        echo "Validando (solo comprobación básica, no lint) $f"
+                        head -5 "$f"
+                      fi
+                    done
+                '''
+            }
+        }
+        stage('Ejecutar scripts adicionales (si los añades)') {
+            steps {
+                echo 'Aquí puedes añadir comandos para ejecutar scripts personalizados'
             }
         }
     }
 }
+
