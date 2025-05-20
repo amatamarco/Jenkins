@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        # Puedes definir aquí variables globales si necesitas, por ejemplo:
-        # NODE_OPTIONS = '--max_old_space_size=4096'
+        // Ejemplo: NODE_OPTIONS = '--max_old_space_size=4096'
     }
 
     stages {
@@ -75,7 +74,7 @@ pipeline {
             }
         }
 
-        stage('Ejecutar thirdPartyCheck.js si existe') {
+        stage('Ejecutar thirdPartyCheck.js') {
             when {
                 expression { fileExists('.config/thirdPartyCheck.js') }
             }
@@ -89,7 +88,7 @@ pipeline {
 
         stage('Simulación build de artefacto (manual)') {
             steps {
-                echo 'Si quieres simular la build del artefacto puedes añadir aquí comandos npm/yarn, por ejemplo:'
+                echo 'Si se quiere simular la build del artifact, se puede añadir aquí comandos npm/yarn, por ejemplo:'
                 echo 'npm run build:production o yarn build:production'
                 //sh 'npm run build:production' // Descomenta si tu proyecto lo soporta
             }
@@ -97,7 +96,7 @@ pipeline {
 
         stage('Docker build (opcional)') {
             steps {
-                echo 'Si tienes un Dockerfile puedes construir la imagen aquí. Añade el Dockerfile o docker-compose.yml si quieres automatizarlo.'
+                echo 'Si hay un Dockerfile se puede construir la imagen aquí.'
                 //sh 'docker build -t tuimagen:latest .'
             }
         }
@@ -110,4 +109,5 @@ pipeline {
         }
     }
 }
+
 
