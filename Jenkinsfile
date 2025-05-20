@@ -1,38 +1,38 @@
 pipeline {
-  agent { label 'linux' }
+  // Usamos un contenedor Docker con Node.js 20.11.1 preinstalado
+  agent {
+    docker {
+      image 'node:20.11.1'
+      args  '--user node'
+    }
+  }
 
   environment {
-    NODE_VERSION    = '20.11.1'
     ARTIFACT_NAME   = 'agbar-fh-kafka2kafka'
     DOCKER_REGISTRY = 'ghcr.io/mytracontrol'
     IMAGE_NAME      = "${DOCKER_REGISTRY}/${ARTIFACT_NAME}"
-  }
-
-  tools {
-    nodejs 'NodeJS_20'
   }
 
   stages {
 
     stage('Checkout & Fetch') {
       steps {
-        // Usamos el ID github-credentials guardado en Jenkins
+        // Usamos credenciales de GitHub para el checkout
         withCredentials([usernamePassword(
           credentialsId: 'github-credentials',
           usernameVariable: 'GIT_USER',
           passwordVariable: 'GIT_TOKEN'
         )]) {
-          // Clonamos con credenciales
-          sh """
-            git clone https://${GIT_USER}:${GIT_TOKEN}@github.com/amatamarco/Jenkins.git .
-            git fetch --prune --unshallow || true
-          """
+          sh "git clone https://${GIT_USER}:${GIT_TOKEN}@github.com/amatamarco/Jenkins.git ."
+          sh 'git fetch --prune --unshallow || true'
         }
       }
     }
 
     stage('Versioning') {
       steps {
+        // Instala GitVersion CLI en el contenedor
+        sh 'npm install -g gitversion-cli'
         sh 'gitversion /config .config/GitVersion.yml /output json > version.json'
         script {
           def v = readJSON file: 'version.json'
@@ -89,20 +89,19 @@ pipeline {
 
     stage('Docker Build & Push') {
       steps {
-        // Usamos el ID dockerhub-credentials guardado en Jenkins
         withCredentials([usernamePassword(
           credentialsId: 'dockerhub-credentials',
           usernameVariable: 'DOCKER_USER',
           passwordVariable: 'DOCKER_PASS'
         )]) {
-          sh "echo \$DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u \$DOCKER_USER --password-stdin"
+          sh "echo ${DOCKER_PASS} | docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} --password-stdin"
           sh 'docker buildx create --use'
           sh """
-            docker buildx build \\
-              --push \\
-              --tag ${IMAGE_NAME}:${env.VERSION} \\
-              --tag ${IMAGE_NAME}:latest \\
-              --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \\
+            docker buildx build \
+              --push \
+              --tag ${IMAGE_NAME}:${env.VERSION} \
+              --tag ${IMAGE_NAME}:latest \
+              --platform linux/amd64,linux/arm/v7,linux/arm64/v8 \
               artifact
           """
         }
